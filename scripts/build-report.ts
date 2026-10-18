@@ -1,12 +1,11 @@
 /**
- * Cave Vinum: generate the static wine-cellar site from a CSV published by Google Sheets.
+ * Cave Vinum: generate the static wine-cellar site from a local CSV or INVENTORY_URL.
  *
- *   CAVE_CSV_URL="https://docs.google.com/…/pub?…&output=csv" node scripts/build-report.ts
- *   node scripts/build-report.ts --file "Inventaire.csv"         # local test
- *   node scripts/build-report.ts --file "Inventaire.csv" --year 2027 --out dist
+ *   npm run build
+ *   INVENTORY_URL="https://example.com/inventory.csv" npm run build
  *
  * Node >= 22.18 (runs TypeScript natively). No runtime dependencies.
- * Security: the CSV URL is never printed to logs or included in the HTML.
+ * Without INVENTORY_URL, reads data/inventory.csv. Writes the report to dist/.
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -99,38 +98,38 @@ export function parseCsv(text: string): string[][] {
       row.push(field); rows.push(row); row = []; field = "";
     } else field += c;
   }
-  if (inQuotes) throw new Error("CSV invalide : guillemet non fermé.");
+  if (inQuotes) throw new Error("Invalid CSV: unterminated quoted field.");
   if (field !== "" || row.length > 0) { row.push(field); rows.push(row); }
   return rows;
 }
 
-// ─── Fetch CSV without exposing its URL ────────────────────────────────────
+// ─── Fetch CSV ─────────────────────────────────────────────────────────────
 async function fetchCsv(rawUrl: string): Promise<string> {
   let url: URL;
-  try { url = new URL(rawUrl.trim()); } catch { throw new Error("CAVE_CSV_URL n'est pas une URL valide."); }
+  try { url = new URL(rawUrl.trim()); } catch { throw new Error("INVENTORY_URL must be a valid URL."); }
   const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
   if (url.protocol !== "https:" && !(isLocal && url.protocol === "http:")) {
-    throw new Error("CAVE_CSV_URL doit être une URL https.");
+    throw new Error("INVENTORY_URL must use HTTPS.");
   }
   let reason = "";
   for (let attempt = 1; attempt <= 3; attempt++) {
     const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20_000) })
-      .catch((err: unknown) => new Error(err instanceof Error && err.name === "TimeoutError" ? "délai dépassé" : "erreur réseau"));
+      .catch((err: unknown) => new Error(err instanceof Error && err.name === "TimeoutError" ? "request timed out" : "network error"));
     if (res instanceof Error) {
       reason = res.message;
     } else if (res.ok) {
-      // Google returns HTML if publishing is disabled or the link is not a CSV export.
+      // A CSV URL may return an HTML error page instead of the export.
       if ((res.headers.get("content-type") ?? "").includes("html")) {
-        throw new Error("Le lien renvoie une page HTML et non un CSV : vérifier que l'onglet est publié au format CSV.");
+        throw new Error("INVENTORY_URL returned HTML instead of CSV.");
       }
       return await res.text();
     } else {
       reason = `HTTP ${res.status}`;
-      if (res.status < 500 && res.status !== 429) break; // inutile de réessayer une erreur client
+      if (res.status < 500 && res.status !== 429) break;
     }
-    if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 2_000));
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
   }
-  throw new Error(`Téléchargement du CSV impossible (${reason}).`);
+  throw new Error(`Could not download CSV (${reason}).`);
 }
 
 // ─── CSV to wines ──────────────────────────────────────────────────────────
@@ -357,7 +356,7 @@ self.addEventListener("fetch", (e) => {
 });
 `;
 
-// Cloudflare Pages headers: prevent search engine indexing.
+// Static-host headers: prevent search engine indexing.
 const HEADERS = `/*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
@@ -368,25 +367,26 @@ const HEADERS = `/*
 // ─── Main ──────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
   const { values } = parseArgs({
-    options: { file: { type: "string" }, out: { type: "string", default: "dist" }, year: { type: "string" } },
+    options: { out: { type: "string", default: "dist" }, year: { type: "string" } },
   });
   const now = new Date();
   const parisYear = Number(new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", year: "numeric" }).format(now));
   const year = values.year ? Number(values.year) : parisYear;
-  if (!Number.isInteger(year)) throw new Error("--year doit être une année (ex. 2027).");
+  if (!Number.isInteger(year)) throw new Error("--year must be a year (for example, 2027).");
 
-  let csv: string;
-  if (values.file) {
-    csv = await readFile(values.file, "utf8");
-  } else if (process.env.CAVE_CSV_URL) {
-    csv = await fetchCsv(process.env.CAVE_CSV_URL);
-  } else {
-    throw new Error("Aucune source : définir CAVE_CSV_URL (Cloudflare > projet > Settings > Variables and Secrets) ou passer --file <chemin.csv>.");
-  }
+  const inventoryUrl = process.env.INVENTORY_URL?.trim();
+  const csv = inventoryUrl
+    ? await fetchCsv(inventoryUrl)
+    : await readFile("data/inventory.csv", "utf8").catch((err: unknown) => {
+      if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+        throw new Error("No inventory source: set INVENTORY_URL or add data/inventory.csv.");
+      }
+      throw err;
+    });
 
   const warnings: string[] = [];
   const wines = toWines(parseCsv(csv), year, warnings);
-  if (wines.length === 0) throw new Error("Aucun vin trouvé dans le CSV : rien n'est publié (le site actuel reste en ligne).");
+  if (wines.length === 0) throw new Error("No wines found in the CSV; refusing to generate an empty report.");
 
   const generatedAt = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", dateStyle: "long", timeStyle: "short" }).format(now);
   const out = values.out ?? "dist";
@@ -401,11 +401,11 @@ async function main(): Promise<void> {
   for (const w of warnings) console.warn(`⚠ ${w}`);
   const inStock = wines.filter((w) => w.status !== "empty");
   const total = inStock.reduce((s, w) => s + (w.qty ?? 0), 0);
-  console.log(`✓ ${plural(inStock.length, "référence")} en stock, ${plural(total, "bouteille")} → ${join(out, "index.html")}`);
+  console.log(`✓ ${inStock.length} wine references in stock, ${total} bottles → ${join(out, "index.html")}`);
 }
 
 main().catch((err: unknown) => {
   // Print only the message, never the full error object, which could contain the URL.
-  console.error(`✗ ${err instanceof Error ? err.message : "Erreur inconnue"}`);
+  console.error(`✗ ${err instanceof Error ? err.message : "Unknown error"}`);
   process.exitCode = 1;
 });

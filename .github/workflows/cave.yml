@@ -1,9 +1,8 @@
 name: Refresh Cave Vinum
 
-# Each day, this workflow updates time_stamp.txt and commits it to the default branch. The commit:
-#   1. Triggers Cloudflare Pages to rebuild and publish the site using the current CSV.
-#   2. Keeps the repository active so GitHub does not disable the scheduled workflow.
-# No secrets are required: the automatically provided GITHUB_TOKEN is sufficient to push.
+# Each day, this workflow updates time_stamp.txt and commits it to the default branch.
+# Connected build services can use the commit to rebuild the report.
+# The automatically provided GITHUB_TOKEN is sufficient to push.
 
 on:
   schedule:
@@ -27,7 +26,7 @@ jobs:
       - name: Update time_stamp.txt
         run: date -u +"%Y-%m-%dT%H:%M:%SZ" > time_stamp.txt
 
-      # Do not add "[skip ci]" to this commit message; Cloudflare may skip the deployment.
+      # Do not add "[skip ci]" to this commit message; build services may skip the commit.
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"

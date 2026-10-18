@@ -5,7 +5,6 @@
   "engines": { "node": ">=22.18" },
   "scripts": {
     "build": "node scripts/build-report.ts",
-    "build:local": "node scripts/build-report.ts --file inventaire.csv",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
