@@ -305,7 +305,7 @@ body{font:15px/1.5 "Jost","Avenir Next","Helvetica Neue",system-ui,-apple-system
 <div class="vinum">
   <header class="v-hero">
     <svg class="v-monogram" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="38.5" fill="none" stroke="currentColor"/><circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" opacity=".55"/><text x="40" y="49" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="29" fill="currentColor">CV</text></svg>
-    <h1 class="v-title">Cave <em>Vinum</em></h1><p class="v-tagline">attention, vin à boire</p>
+    <h1 class="v-title">Cave <em>Vinum</em></h1><p class="v-tagline">Chaque vin a son heure.</p>
     <div class="v-orn" aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 0 9 5l5 2-5 2-2 5-2-5-5-2 5-2z" fill="currentColor"/></svg></div>
     <div class="v-stats">
       <div class="v-stat"><b>${bottles(stock)}</b><span>bouteilles</span></div>
