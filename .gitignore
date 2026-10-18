@@ -2,4 +2,4 @@ dist/
 node_modules/
 # Ignore CSV exports except for the CSV explicitly used by the local-source option.
 *.csv
-!inventaire.csv
+!inventory.csv

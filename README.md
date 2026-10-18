@@ -1,59 +1,47 @@
 # Cave Vinum
 
-Turn a wine inventory into a mobile-friendly website with search, filters, and drinking-window indicators. Fork this repository, choose where your inventory lives, and connect your fork to Cloudflare Pages.
+Turn a wine inventory into a mobile-friendly website with search, filters, and drinking-window indicators. Fork this repository, choose how to provide your inventory, and build the report locally or with your own hosting service.
 
-## How publishing works
+## Choose how to build
 
-```text
-GitHub Actions (daily or manual)
-  └─ commits an updated time_stamp.txt to your default branch
-       └─ Cloudflare Pages sees the new commit
-            └─ runs the build command and reads your inventory
-                 └─ creates and publishes the website from dist/
+The generator accepts either a local CSV file or a URL that returns a CSV export:
+
+| Build location | Inventory source | Command |
+|---|---|---|
+| Local | CSV file | `node scripts/build-report.ts --file ./inventory.csv` |
+| Local or remote | CSV export URL | `CAVE_CSV_URL='https://…' npm run build` |
+
+For a remote build, configure `CAVE_CSV_URL` as an environment variable in whichever service runs the build. Keep it out of the repository; use that service's secret-variable feature if available. The URL must return the CSV data directly. The generator fetches it each time the build runs.
+
+Alternatively, commit a CSV file in your fork and configure your build command to read it:
+
+```bash
+npm run build -- --file inventory.csv
 ```
 
-**The GitHub workflow does not generate or commit the website HTML.** Cloudflare Pages builds the site after each push to the connected branch. The generated `dist/` directory is a deployment output; it is not committed to the repository.
+If you commit your inventory, it is part of your Git history and visible to anyone who can access the repository. Treat the generated website as public too unless you protect it with access controls.
 
-## Pick an inventory source
+## How automated publishing works
 
-The generator reads columns by position, so header text and language do not matter. Keep all 12 columns in the template's A–L order, including the calculated columns H and I.
+This repository includes a GitHub Actions workflow that runs daily at 04:00 UTC or on demand:
 
-### Option 1: Google Sheets
+```text
+GitHub Actions commits an updated time_stamp.txt
+  └─ your hosting/build service sees the new commit
+       └─ runs the configured build command
+            └─ the generator reads the CSV source and writes dist/
+                 └─ your hosting service publishes dist/
+```
 
-1. Download [`template/cave-vinum-template.xlsx`](template/cave-vinum-template.xlsx), open it in Google Sheets, and replace or remove the sample wine.
-2. In Google Sheets, choose **File → Share → Publish to web**. Publish the `Inventory` tab in CSV format and copy its CSV URL.
-3. In **Cloudflare Pages → your project → Settings → Variables and Secrets**, add `CAVE_CSV_URL` with that URL. Store it as a **Secret** if Cloudflare offers that type.
-4. Set the Cloudflare build command to `npm run build` and the output directory to `dist`.
+**The GitHub workflow does not run the generator or commit the generated website.** It only updates `time_stamp.txt` and pushes that commit. Your hosting service must be connected to the repository, build on pushes to the branch, and publish the generated `dist/` directory. `dist/` is build output and is not committed to Git.
 
-**Store `CAVE_CSV_URL` in Cloudflare Pages, not in a GitHub Actions secret.** Cloudflare runs the build and needs the URL to fetch the sheet. The GitHub workflow only pushes the timestamp that triggers the Cloudflare build; it does not read this variable.
+To enable the scheduled workflow in a fork, allow GitHub Actions to write to the repository under **Settings → Actions → General → Workflow permissions**. Run it immediately from **Actions → Refresh Cave Vinum → Run workflow**. If the timestamp commit appears but the site does not change, check the build and deployment logs from your hosting service.
 
-> Google Sheets "Publish to web" makes the CSV accessible to anyone with its link. A Cloudflare secret keeps the URL out of the repository and build settings display, but it does not make the published CSV private. The deployed website is also public to anyone who knows its address unless you add access protection such as Cloudflare Access.
+## Spreadsheet template
 
-### Option 2: CSV committed in your fork
+[`template/cave-vinum-template.xlsx`](template/cave-vinum-template.xlsx) contains an `Inventory` tab with dropdowns, calculated fields, 200 prepared rows, and one sample wine. Replace or remove the example before publishing.
 
-1. Fill in the template, then export its `Inventory` tab as UTF-8 CSV named `inventaire.csv`.
-2. Put `inventaire.csv` in the repository root and commit it to your default branch.
-3. Set the Cloudflare build command to:
-
-   ```bash
-   npm run build -- --file inventaire.csv
-   ```
-
-   Keep the output directory set to `dist`. Do not set `CAVE_CSV_URL` for this option.
-
-Now Cloudflare reads the committed CSV on every build. Push a new CSV when your inventory changes; the scheduled workflow also causes a daily rebuild. **The CSV is part of your Git history. If the fork is public, your inventory is public too.**
-
-## Set up the scheduled refresh
-
-1. Fork this repository and connect the fork's default branch to Cloudflare Pages using the selected source option above.
-2. In the fork's **Settings → Actions → General → Workflow permissions**, allow workflows to read and write to the repository. GitHub Actions needs this to commit `time_stamp.txt`.
-3. Enable Actions for the fork. The **Refresh Cave Vinum** workflow runs daily at 04:00 UTC. To refresh immediately, use **Actions → Refresh Cave Vinum → Run workflow**.
-
-The workflow's timestamp commit is what tells Cloudflare Pages to rebuild. Check the Cloudflare deployment logs if the timestamp was committed but the site did not update.
-
-## Template and column order
-
-The supplied workbook, [`template/cave-vinum-template.xlsx`](template/cave-vinum-template.xlsx), has an `Inventory` tab with dropdowns, calculated fields, 200 prepared rows, and one sample wine. Replace or remove the example before publishing.
+The generator reads values by column position, not by header text. Header names and language do not matter, but **keep all 12 columns in the template's A–L order**, including the calculated H and I columns.
 
 | Column | Field | Use |
 |---|---|---|
@@ -77,24 +65,26 @@ The site recalculates statuses from quantity and drinking-window years at each b
 Requires Node.js 22.18 or later. No dependency installation is needed to generate the site from a CSV:
 
 ```bash
-node scripts/build-report.ts --file ./inventaire.csv
+node scripts/build-report.ts --file ./inventory.csv
 open dist/index.html
 ```
 
-You can also test the Google Sheets build locally by passing the URL through an environment variable. Do not save it in the repository:
+Or build from a CSV URL:
 
 ```bash
 CAVE_CSV_URL='https://…' npm run build
 ```
+
+The output is written to `dist/`. To check the generator's types, install development dependencies with `npm install`, then run `npm run typecheck`.
 
 ## What is committed?
 
 | Item | In Git? | Purpose |
 |---|---:|---|
 | Generator, workflow, config, README, and workbook template | Yes | Source project |
-| `time_stamp.txt` | Yes, updated daily by Actions | Triggers a Cloudflare rebuild |
-| `inventaire.csv` | Only if you choose the committed-CSV option | Input data; public if the fork is public |
-| Google Sheets CSV URL | No | Set as `CAVE_CSV_URL` in Cloudflare Pages |
-| Generated `dist/` website files | No | Built and published by Cloudflare Pages |
+| `time_stamp.txt` | Yes; updated daily by GitHub Actions | Triggers builds for connected hosting services |
+| `inventory.csv` | Only if you choose the committed-CSV option | Build input; visible to repository readers |
+| `CAVE_CSV_URL` | No | Configure as an environment variable for the build service |
+| Generated `dist/` website files | No | Build output for your hosting service to publish |
 
-CSV exports are ignored by Git except for `inventaire.csv`. Do not commit other exports or data you do not want to expose.
+CSV exports are ignored by Git except for `inventory.csv`. Do not commit inventory data you do not want to share.
