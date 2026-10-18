@@ -1,0 +1,15 @@
+{
+  "name": "cave-vinum",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "build": "node scripts/build-report.ts",
+    "build:local": "node scripts/build-report.ts --file inventaire.csv",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
