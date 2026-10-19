@@ -27,6 +27,12 @@ The included GitHub Actions workflow commits an updated `time_stamp.txt` every d
 
 GitHub Actions only updates the timestamp; it does not generate or commit the report. Configure your build service to run `npm run build` on the repository branch. It will use `INVENTORY_URL` if configured, otherwise `data/inventory.csv`.
 
+## Repository checks and updates
+
+Pull requests and pushes to `main` run type-checking and `npm audit`. CodeQL analyzes JavaScript/TypeScript on pushes, pull requests, and weekly. Dependency review fails its check when a pull request introduces dependencies with known moderate-or-higher vulnerabilities.
+
+Dependabot checks npm dependencies and GitHub Actions daily, grouping minor and patch dependency updates. Its pull requests are validated and audited before eligible minor/patch updates are approved and queued for squash auto-merge; major updates require manual review. Keep GitHub Actions pinned to full commit SHAs when changing workflow dependencies.
+
 ## Inventory format
 
 Start with [`template/cave-vinum-template.xlsx`](template/cave-vinum-template.xlsx). Export its `Inventory` tab as CSV and save it as `data/inventory.csv`, or host the CSV and set `INVENTORY_URL`.

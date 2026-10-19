@@ -2,15 +2,13 @@ name: Refresh Cave Vinum
 
 # Each day, this workflow updates time_stamp.txt and commits it to the default branch.
 # Connected build services can use the commit to rebuild the report.
-# The automatically provided GITHUB_TOKEN is sufficient to push.
 
 on:
   schedule:
     - cron: "23 4 * * *" # Daily at 04:23 UTC (05:23 or 06:23 in Paris)
   workflow_dispatch: # Manually refresh after editing the spreadsheet
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
   group: cave-vinum
@@ -20,8 +18,10 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Update time_stamp.txt
         run: date -u +"%Y-%m-%dT%H:%M:%SZ" > time_stamp.txt
