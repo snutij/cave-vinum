@@ -1,5 +1,3 @@
-[![bw-evaluation](assets/bw-evaluation-banner.svg)](https://github.com/snutij/bw-evaluation)
-
 # Cave Vinum
 
 Generate a mobile-friendly wine inventory report.
