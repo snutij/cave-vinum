@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/banner.svg" alt="Cave Vinum banner" width="100%"></p>
+
 # Cave Vinum
 
 Generate a mobile-friendly wine inventory report.
