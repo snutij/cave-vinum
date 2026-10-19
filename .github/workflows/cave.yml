@@ -6,7 +6,7 @@ name: Refresh Cave Vinum
 
 on:
   schedule:
-    - cron: "0 4 * * *" # Daily at 04:00 UTC (05:00 or 06:00 in Paris)
+    - cron: "23 4 * * *" # Daily at 04:23 UTC (05:23 or 06:23 in Paris)
   workflow_dispatch: # Manually refresh after editing the spreadsheet
 
 permissions:
