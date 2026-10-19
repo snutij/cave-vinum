@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" width="1280" height="320" role="img" aria-label="bw_evaluation: deterministic black-and-white candidacy measurement and batch-relative ranking for colour photographs">
+<title>bw_evaluation</title>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#141417"/><stop offset="1" stop-color="#0a0a0c"/></linearGradient>
+<linearGradient id="split" x1="0" x2="1"><stop offset="0" stop-color="#ff7a59"/><stop offset=".33" stop-color="#ffd166"/><stop offset=".66" stop-color="#6fcf97"/><stop offset="1" stop-color="#56a0ff"/></linearGradient>
+<linearGradient id="beam" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".85" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient>
+<pattern id="grain" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="#fff" opacity=".035"/><rect x="2" y="2" width="1" height="1" fill="#fff" opacity=".025"/></pattern>
+<style>
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.sans{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+</style>
+</defs>
+<rect width="1280" height="320" fill="url(#bg)"/>
+<rect width="1280" height="320" fill="url(#grain)"/>
+
+<g transform="translate(56,0)">
+<text x="0" y="118" class="mono" font-size="44" font-weight="700" fill="#f2f2f2">bw<tspan fill="#8a8a8f">_</tspan>evaluation</text>
+<rect x="2" y="134" width="300" height="3" rx="1.5" fill="url(#split)">
+<animate attributeName="width" dur="8s" repeatCount="indefinite" values="300;300;0;0;300" keyTimes="0;0.1;0.55;0.95;1"/></rect>
+<rect x="2" y="134" width="0" height="3" rx="1.5" fill="#bdbdbd">
+<animate attributeName="width" dur="8s" repeatCount="indefinite" values="0;0;300;300;0" keyTimes="0;0.1;0.55;0.95;1"/></rect>
+<text x="0" y="170" class="sans" font-size="16" fill="#b8b8bd">Which of your colour photos survive</text>
+<text x="0" y="192" class="sans" font-size="16" fill="#b8b8bd">the trip to black &amp; white?</text>
+<g class="mono" font-size="13">
+<rect x="0" y="222" width="320" height="34" rx="6" fill="#1d1d22" stroke="#2c2c33"/>
+<text x="14" y="244" fill="#6fcf97">$</text>
+<clipPath id="type"><rect x="28" y="228" width="0" height="24"><animate attributeName="width" dur="8s" repeatCount="indefinite" values="0;0;272;272;0" keyTimes="0;0.01;0.1;0.95;1"/></rect></clipPath>
+<text x="28" y="244" fill="#e6e6e6" clip-path="url(#type)">uv run bw_evaluation ~/photos</text>
+</g>
+<text x="0" y="284" class="mono" font-size="11" fill="#6b6b72" letter-spacing=".5">CHROMA LOSS · LUMINANCE STRUCTURE · PARETO RANKING</text>
+</g>
+
+<g transform="translate(430,100)">
+<rect x="-6" y="-6" width="162" height="140" rx="4" fill="#f4f1ea"/>
+<clipPath id="c0"><rect width="150" height="110"/></clipPath>
+<g clip-path="url(#c0)"><rect x="0" y="0" width="150" height="110" fill="#f28c38"/><rect x="0" y="0" width="150" height="40" fill="#e0567a"/><circle cx="95" cy="62" r="20" fill="#ffd95e"/><path d="M0 80 L35 58 L70 78 L105 60 L150 82 L150 110 L0 110Z" fill="#5a2a4a"/><path d="M0 95 L50 84 L100 96 L150 88 L150 110 L0 110Z" fill="#2e1430"/></g>
+<clipPath id="g0"><rect width="0" height="110"><animate attributeName="width" dur="8s" repeatCount="indefinite" values="0;0;150;150;0" keyTimes="0.000;0.120;0.240;0.950;1.000"/></rect></clipPath>
+<g clip-path="url(#g0)"><rect x="0" y="0" width="150" height="110" fill="#9c9c9c"/><rect x="0" y="0" width="150" height="40" fill="#767676"/><circle cx="95" cy="62" r="20" fill="#d8d8d8"/><path d="M0 80 L35 58 L70 78 L105 60 L150 82 L150 110 L0 110Z" fill="#373737"/><path d="M0 95 L50 84 L100 96 L150 88 L150 110 L0 110Z" fill="#1c1c1c"/></g>
+<g clip-path="url(#c0)"><g opacity="0"><rect x="-40" y="0" width="40" height="110" fill="url(#beam)"/><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0.000;0.120;0.125;0.240;0.245;1.000"/><animateTransform attributeName="transform" type="translate" dur="8s" repeatCount="indefinite" values="0 0;0 0;190 0;190 0" keyTimes="0.000;0.120;0.240;1.000"/></g></g>
+<text x="2" y="126" class="mono" font-size="10" fill="#55555c">sunset.jpg</text>
+<text x="148" y="126" class="mono" font-size="10" text-anchor="end" fill="#55555c" opacity="0">red filter<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0.000;0.240;0.260;0.950;1.000"/></text>
+<g opacity="0" transform="translate(75,-30)"><circle r="14" fill="#0f0f12" stroke="#d6d6d6" stroke-width="2"/><text y="5" text-anchor="middle" class="mono" font-size="13" font-weight="700" fill="#d6d6d6">#2</text><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0.000;0.620;0.660;0.930;0.970;1.000"/></g>
+</g>
+<g transform="translate(600,100)">
+<rect x="-6" y="-6" width="162" height="140" rx="4" fill="#f4f1ea"/>
+<clipPath id="c1"><rect width="150" height="110"/></clipPath>
+<g clip-path="url(#c1)"><rect x="0" y="0" width="150" height="110" fill="#3c8c3c"/><path d="M75 110 L75 58" stroke="#2a6a2a" stroke-width="4"/><circle cx="75" cy="45" r="14" fill="#dc5f5a"/><circle cx="57" cy="52" r="11" fill="#dc5f5a"/><circle cx="93" cy="52" r="11" fill="#dc5f5a"/><circle cx="65" cy="32" r="11" fill="#dc5f5a"/><circle cx="85" cy="32" r="11" fill="#dc5f5a"/><circle cx="75" cy="44" r="6" fill="#e0b830"/><circle cx="25" cy="80" r="8" fill="#d8645c"/><circle cx="125" cy="72" r="9" fill="#d8645c"/></g>
+<clipPath id="g1"><rect width="0" height="110"><animate attributeName="width" dur="8s" repeatCount="indefinite" values="0;0;150;150;0" keyTimes="0.000;0.260;0.380;0.950;1.000"/></rect></clipPath>
+<g clip-path="url(#g1)"><rect x="0" y="0" width="150" height="110" fill="#757575"/><path d="M75 110 L75 58" stroke="#585858" stroke-width="4"/><circle cx="75" cy="45" r="14" fill="#797979"/><circle cx="57" cy="52" r="11" fill="#797979"/><circle cx="93" cy="52" r="11" fill="#797979"/><circle cx="65" cy="32" r="11" fill="#797979"/><circle cx="85" cy="32" r="11" fill="#797979"/><circle cx="75" cy="44" r="6" fill="#b7b7b7"/><circle cx="25" cy="80" r="8" fill="#7c7c7c"/><circle cx="125" cy="72" r="9" fill="#7c7c7c"/></g>
+<g clip-path="url(#c1)"><g opacity="0"><rect x="-40" y="0" width="40" height="110" fill="url(#beam)"/><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0.000;0.260;0.265;0.380;0.385;1.000"/><animateTransform attributeName="transform" type="translate" dur="8s" repeatCount="indefinite" values="0 0;0 0;190 0;190 0" keyTimes="0.000;0.260;0.380;1.000"/></g></g>
+<text x="2" y="126" class="mono" font-size="10" fill="#55555c">flower.jpg</text>
+<text x="148" y="126" class="mono" font-size="10" text-anchor="end" fill="#c0392b" opacity="0">isoluminant!<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0.000;0.380;0.400;0.950;1.000"/></text>
+<g opacity="0" transform="translate(75,-30)"><circle r="14" fill="#0f0f12" stroke="#7a7a80" stroke-width="2"/><text y="5" text-anchor="middle" class="mono" font-size="13" font-weight="700" fill="#7a7a80">#3</text><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0.000;0.620;0.660;0.930;0.970;1.000"/></g>
+</g>
+<g transform="translate(770,100)">
+<rect x="-6" y="-6" width="162" height="140" rx="4" fill="#f4f1ea"/>
+<clipPath id="c2"><rect width="150" height="110"/></clipPath>
+<g clip-path="url(#c2)"><rect x="0" y="0" width="150" height="110" fill="#7fb3e6"/><rect x="10" y="30" width="28" height="80" fill="#2b3a55"/><rect x="42" y="12" width="34" height="98" fill="#1a2233"/><rect x="80" y="40" width="24" height="70" fill="#3d4f6e"/><rect x="108" y="22" width="32" height="88" fill="#121826"/><rect x="0" y="96" width="150" height="14" fill="#e8d9b0"/><rect x="48" y="22" width="6" height="8" fill="#ffe08a"/><rect x="62" y="40" width="6" height="8" fill="#ffe08a"/><rect x="116" y="34" width="6" height="8" fill="#ffe08a"/><rect x="16" y="50" width="6" height="8" fill="#ffe08a"/><rect x="128" y="60" width="6" height="8" fill="#ffe08a"/></g>
+<clipPath id="g2"><rect width="0" height="110"><animate attributeName="width" dur="8s" repeatCount="indefinite" values="0;0;150;150;0" keyTimes="0.000;0.400;0.520;0.950;1.000"/></rect></clipPath>
+<g clip-path="url(#g2)"><rect x="0" y="0" width="150" height="110" fill="#acacac"/><rect x="10" y="30" width="28" height="80" fill="#393939"/><rect x="42" y="12" width="34" height="98" fill="#222222"/><rect x="80" y="40" width="24" height="70" fill="#4d4d4d"/><rect x="108" y="22" width="32" height="88" fill="#181818"/><rect x="0" y="96" width="150" height="14" fill="#d9d9d9"/><rect x="48" y="22" width="6" height="8" fill="#e0e0e0"/><rect x="62" y="40" width="6" height="8" fill="#e0e0e0"/><rect x="116" y="34" width="6" height="8" fill="#e0e0e0"/><rect x="16" y="50" width="6" height="8" fill="#e0e0e0"/><rect x="128" y="60" width="6" height="8" fill="#e0e0e0"/></g>
+<g clip-path="url(#c2)"><g opacity="0"><rect x="-40" y="0" width="40" height="110" fill="url(#beam)"/><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0.000;0.400;0.405;0.520;0.525;1.000"/><animateTransform attributeName="transform" type="translate" dur="8s" repeatCount="indefinite" values="0 0;0 0;190 0;190 0" keyTimes="0.000;0.400;0.520;1.000"/></g></g>
+<text x="2" y="126" class="mono" font-size="10" fill="#55555c">city.jpg</text>
+<text x="148" y="126" class="mono" font-size="10" text-anchor="end" fill="#55555c" opacity="0">BT.709<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0.000;0.520;0.540;0.950;1.000"/></text>
+<g opacity="0" transform="translate(75,-30)"><circle r="14" fill="#0f0f12" stroke="#ffffff" stroke-width="2"/><text y="5" text-anchor="middle" class="mono" font-size="13" font-weight="700" fill="#ffffff">#1</text><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0.000;0.620;0.660;0.930;0.970;1.000"/></g>
+</g>
+<g class="mono">
+<line x1="1000" y1="240" x2="1220" y2="240" stroke="#4a4a52"/><line x1="1000" y1="70" x2="1000" y2="240" stroke="#4a4a52"/>
+<text x="1220" y="258" text-anchor="end" font-size="10" fill="#7d7d85">chroma loss →</text>
+<text transform="translate(990,70) rotate(-90)" text-anchor="end" font-size="10" fill="#7d7d85">structure →</text>
+<text x="1000" y="56" font-size="10" fill="#7d7d85" letter-spacing="1">BATCH-RELATIVE PARETO</text>
+<circle cx="1171.6" cy="219.6" r="3" fill="#3a3a41"/>
+<circle cx="1198.0" cy="202.6" r="3" fill="#3a3a41"/>
+<circle cx="1154.0" cy="229.8" r="3" fill="#3a3a41"/>
+<circle cx="1206.8" cy="223.0" r="3" fill="#3a3a41"/>
+<circle cx="1105.6" cy="161.8" r="3" fill="#3a3a41"/>
+<circle cx="1189.2" cy="134.6" r="3" fill="#3a3a41"/>
+<line x1="1030.8" y1="90.4" x2="1066.0" y2="78.5" stroke="#e6e6e6" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="37.2" stroke-dashoffset="37.2"><animate attributeName="stroke-dashoffset" dur="8s" repeatCount="indefinite" values="37.2;37.2;0;0;37.2;37.2" keyTimes="0.000;0.560;0.660;0.930;0.970;1.000"/></line>
+<text x="1074.0" y="76.5" font-size="9" fill="#e6e6e6" opacity="0">L1<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0.000;0.660;0.700;0.930;0.970;1.000"/></text>
+<line x1="1079.2" y1="121.0" x2="1121.0" y2="97.2" stroke="#8a8a92" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="48.1" stroke-dashoffset="48.1"><animate attributeName="stroke-dashoffset" dur="8s" repeatCount="indefinite" values="48.1;48.1;0;0;48.1;48.1" keyTimes="0.000;0.560;0.660;0.930;0.970;1.000"/></line>
+<text x="1129.0" y="95.2" font-size="9" fill="#8a8a92" opacity="0">L2<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0.000;0.660;0.700;0.930;0.970;1.000"/></text>
+<circle cx="1066.0" cy="78.5" r="3.5" fill="#6b6b72"/>
+<circle cx="1121.0" cy="97.2" r="3.5" fill="#6b6b72"/>
+<g opacity="0"><circle cx="1079.2" cy="121.0" r="5.5" fill="#fff"/><circle cx="1079.2" cy="121.0" r="5.5" fill="none" stroke="#fff" opacity=".5"><animate attributeName="r" dur="8s" repeatCount="indefinite" values="5.5;5.5;14;14" keyTimes="0.000;0.240;0.300;1.000"/><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;0.6;0;0" keyTimes="0.000;0.240;0.245;0.300;1.000"/></circle><text x="1088.2" y="136.0" font-size="10" fill="#e6e6e6">sunset</text><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0.000;0.240;0.250;0.950;1.000"/></g>
+<g opacity="0"><circle cx="1136.4" cy="189.0" r="5.5" fill="#fff"/><circle cx="1136.4" cy="189.0" r="5.5" fill="none" stroke="#fff" opacity=".5"><animate attributeName="r" dur="8s" repeatCount="indefinite" values="5.5;5.5;14;14" keyTimes="0.000;0.380;0.440;1.000"/><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;0.6;0;0" keyTimes="0.000;0.380;0.385;0.440;1.000"/></circle><text x="1145.4" y="193.0" font-size="10" fill="#e6e6e6">flower</text><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0.000;0.380;0.390;0.950;1.000"/></g>
+<g opacity="0"><circle cx="1030.8" cy="90.4" r="5.5" fill="#fff"/><circle cx="1030.8" cy="90.4" r="5.5" fill="none" stroke="#fff" opacity=".5"><animate attributeName="r" dur="8s" repeatCount="indefinite" values="5.5;5.5;14;14" keyTimes="0.000;0.520;0.580;1.000"/><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;0.6;0;0" keyTimes="0.000;0.520;0.525;0.580;1.000"/></circle><text x="1020.8" y="110.4" font-size="10" fill="#e6e6e6">city</text><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0.000;0.520;0.530;0.950;1.000"/></g>
+</g></svg>
