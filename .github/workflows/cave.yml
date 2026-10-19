@@ -19,9 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ssh-key: ${{ secrets.REFRESH_DEPLOY_KEY }}
 
       - name: Update time_stamp.txt
         run: date -u +"%Y-%m-%dT%H:%M:%SZ" > time_stamp.txt
