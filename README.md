@@ -39,9 +39,23 @@ The daily timestamp workflow authenticates using the dedicated `REFRESH_DEPLOY_K
 
 ## Inventory format
 
-Start with [`template/cave-vinum-template.xlsx`](template/cave-vinum-template.xlsx). Export its `Inventory` tab as CSV and save it as `data/inventory.csv`, or host the CSV and set `INVENTORY_URL`.
+Start with [`template/cave-vinum-template.xlsx`](template/cave-vinum-template.xlsx). Export its `Inventaire` tab as CSV and save it as `data/inventory.csv`, or host the CSV and set `INVENTORY_URL`.
 
-The script reads columns by position, not by header name. Keep the template's 12 columns in A–L order, including calculated columns H and I.
+The script reads columns by position, not by header name. Keep the template's 9 columns in A–I order:
+
+| Col | Header | Required | Value |
+| --- | --- | --- | --- |
+| A | Vin | Yes | Producer and cuvée |
+| B | Millésime | No | 4-digit year, blank for non-vintage |
+| C | Quantité | Yes | Whole number ≥ 0 (0 = out of stock) |
+| D | Couleur | Yes | `Rouge`, `Blanc`, `Rosé` or `Bulles` |
+| E | Région | No | One of the template's 12 regions |
+| F | Boire dès | No | Start of drinking window (year) |
+| G | Boire avant | Yes | End of drinking window (year), drives the status |
+| H | Accords | No | Comma-separated tags from the template's list |
+| I | Notes | No | Free text, `·` separates items |
+
+Status and years left are computed by the script. In Google Sheets, enable *Allow multiple selections* on column H's data validation to pick several pairing tags per wine.
 
 ## Git
 
