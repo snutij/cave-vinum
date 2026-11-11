@@ -19,11 +19,10 @@ interface Wine {
   vintage: number | null;
   qty: number | null;
   color: string;
-  appellation: string;
+  region: string;
   peakStart: number | null;
   peakEnd: number | null;
   tags: string[];
-  location: string;
   notes: string;
   status: Status;
   yearsLeft: number | null;
@@ -40,9 +39,9 @@ const STATUS: Record<Status, { rank: number; label: string }> = {
 
 /** Tags offered by the filter, in order (unknown tags are appended). */
 const KNOWN_TAGS = [
-  "Apéro", "Poisson cuit", "Huîtres / Fruits de mer crus", "Volaille / Viande blanche",
-  "Viande rouge / Canard", "Plat mijoté / Gibier", "Fromage à pâte dure",
-  "Pizza / Pâtes / Charcuterie", "Cuisine épicée", "Dessert",
+  "Apéro", "Fruits de mer", "Poisson", "Volaille & viande blanche",
+  "Viande rouge & grillades", "Plat mijoté & gibier", "Charcuterie & cuisine italienne",
+  "Végétarien", "Épicé & cuisine du monde", "Fromage", "Dessert",
 ];
 
 /** CSV positions from the supplied workbook. Header text is intentionally ignored. */
@@ -51,14 +50,13 @@ const COLUMN = {
   vintage: 1,
   qty: 2,
   color: 3,
-  appellation: 4,
+  region: 4,
   peakStart: 5,
   peakEnd: 6,
-  tags: 9,
-  location: 10,
-  notes: 11,
+  tags: 7,
+  notes: 8,
 } as const;
-const CSV_COLUMN_COUNT = 12;
+const CSV_COLUMN_COUNT = 9;
 
 // ─── Utilities ─────────────────────────────────────────────────────────────
 const norm = (s: string): string =>
@@ -167,8 +165,7 @@ function toWines(rows: string[][], year: number, warnings: string[]): Wine[] {
     wines.push({
       name, vintage, qty, peakStart, peakEnd, tags,
       color: get(row, "color"),
-      appellation: get(row, "appellation"),
-      location: get(row, "location"),
+      region: get(row, "region"),
       notes: get(row, "notes"),
       ...computeStatus(qty, peakStart, peakEnd, year),
     });
@@ -200,7 +197,7 @@ function renderCard(w: Wine, scale: { min: number; max: number }, year: number, 
   const notes = w.notes
     ? esc(w.notes).replace(/\s+·\s+/g, '<span class="v-sep" aria-hidden="true"> · </span>')
     : "";
-  const search = norm([w.name, w.vintage ?? "", w.appellation, w.color, w.location, w.notes, ...w.tags].join(" "));
+  const search = norm([w.name, w.vintage ?? "", w.region, w.color, w.notes, ...w.tags].join(" "));
   return `<article class="v-card${statusClass === "urgent" ? " is-urgent" : ""}${inStock ? "" : " is-out"}" data-color="${esc(norm(w.color))}" data-tags="${esc(w.tags.map(norm).join("|"))}"
   data-search="${esc(search)}" data-stock="${inStock ? 1 : 0}" data-qty="${w.qty ?? 0}" style="animation-delay:${index * 70}ms"${inStock ? "" : " hidden"}>
   <div class="v-label">
@@ -209,7 +206,7 @@ function renderCard(w: Wine, scale: { min: number; max: number }, year: number, 
     <h2 class="v-house">${esc(house)}</h2>
     ${cuvee ? `<p class="v-cuvee">${esc(cuvee)}</p>` : ""}
     ${w.vintage !== null ? `<div class="v-vintage">${w.vintage}</div>` : ""}
-    ${w.appellation ? `<p class="v-aoc">${esc(w.appellation)}</p>` : ""}
+    ${w.region ? `<p class="v-aoc">${esc(w.region)}</p>` : ""}
   </div>
   <div class="v-details">
     <div class="v-top"><span class="v-status v-status--${statusClass}"><i></i>${esc(STATUS[w.status].label)}</span>
@@ -217,7 +214,7 @@ function renderCard(w: Wine, scale: { min: number; max: number }, year: number, 
     </div>
     ${w.peakEnd !== null ? `<div class="v-time"><div class="v-time-head"><p class="v-cap">Apogée</p><span class="v-years"><strong>${w.peakStart ?? "?"} → ${w.peakEnd}</strong>${w.yearsLeft !== null ? `<span class="v-delta">${w.yearsLeft > 0 ? "+" : w.yearsLeft < 0 ? "−" : ""}${plural(Math.abs(w.yearsLeft), "an")}</span>` : ""}</span></div>${range}</div>` : ""}
     ${w.tags.length ? `<div><p class="v-cap">Accords mets-vins</p><ul class="v-tags">${w.tags.map((t) => `<li data-tag="${esc(norm(t))}">${esc(t)}</li>`).join("")}</ul></div>` : ""}
-    ${notes || w.location ? `<div class="v-notes-wrap">${notes ? `<p class="v-cap">Notes / Service</p><p class="v-notes">${notes}</p>` : ""}${w.location ? `<p class="v-place"><span class="v-cap">Emplacement</span> ${esc(w.location)}</p>` : ""}</div>` : ""}
+    ${notes ? `<div class="v-notes-wrap"><p class="v-cap">Notes / Service</p><p class="v-notes">${notes}</p></div>` : ""}
   </div>
 </article>`;
 }
@@ -316,7 +313,7 @@ body{font:15px/1.5 "Jost","Avenir Next","Helvetica Neue",system-ui,-apple-system
   </header>
   <main class="v-main">
     <section class="v-controls" aria-label="Filtres">
-      <label class="v-search"><span class="v-sr">Rechercher</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7.5"/><path d="m20.5 20.5-4.2-4.2"/></svg><input id="v-q" type="search" placeholder="Rechercher un vin, une appellation…" autocomplete="off"></label>
+      <label class="v-search"><span class="v-sr">Rechercher</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7.5"/><path d="m20.5 20.5-4.2-4.2"/></svg><input id="v-q" type="search" placeholder="Rechercher un vin, une région…" autocomplete="off"></label>
       <div class="v-row">
         <div class="v-seg" id="v-seg" role="group" aria-label="Couleur">
           <button type="button" data-color="" aria-pressed="true"><span class="v-dot v-dot--all"></span>Toutes <small>${bottles(stock)}</small></button>${colors.map(([key, label]) => `<button type="button" data-color="${esc(key)}" aria-pressed="false"><span class="v-dot v-dot--${["rouge", "blanc", "rose"].includes(key) ? key : "other"}"></span>${esc(label)} <small>${bottles(stock.filter((w) => norm(w.color) === key))}</small></button>`).join("")}
