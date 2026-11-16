@@ -1,3 +1,4 @@
+import { LOCALE } from "./locale.ts";
 import { norm, toInt } from "./text.ts";
 
 export interface Wine {
@@ -36,7 +37,7 @@ export const STATUS: Record<Status, { rank: number; label: string; css: string }
 };
 
 export const isInStock = (w: Wine): boolean => w.status !== STATUS_KEY.EMPTY;
-export const isDrinkSoon = (w: Wine): boolean => STATUS[w.status].css === "urgent";
+export const isDrinkSoon = (w: Wine): boolean => w.status === STATUS_KEY.URGENT || w.status === STATUS_KEY.THIS_YEAR;
 
 export const sameTag = (a: string, b: string): boolean => norm(a) === norm(b);
 export const hasTag = (w: Wine, tag: string): boolean => w.tags.some((t) => sameTag(t, tag));
@@ -71,9 +72,10 @@ export const CSV_COLUMN_COUNT = 9;
 
 export const COLOR_ORDER = ["rouge", "blanc", "rose", "bulles"];
 export const colorRank = (key: string): number => (COLOR_ORDER.indexOf(key) + 1) || UNRANKED_COLOR;
-/** Colours with their own dot; any other colour uses the "other" dot. */
-export const DOT_COLORS = ["rouge", "blanc", "rose"];
-export const dotColor = (color: string): string => (DOT_COLORS.includes(norm(color)) ? norm(color) : "other");
+/** Colours with their own dot; any other colour uses the fallback dot. */
+const DOT_COLORS = ["rouge", "blanc", "rose"];
+const FALLBACK_DOT_COLOR = "other";
+export const dotColor = (color: string): string => (DOT_COLORS.includes(norm(color)) ? norm(color) : FALLBACK_DOT_COLOR);
 
 export function splitName(name: string): { house: string; cuvee: string } {
   const [house = "", ...cuvee] = name.split(NAME_SEPARATOR);
@@ -96,38 +98,60 @@ export function toWines(rows: string[][], year: number): { wines: Wine[]; warnin
   if (header.length < CSV_COLUMN_COUNT) {
     throw new Error(`Incomplete CSV: expected at least ${CSV_COLUMN_COUNT} columns in the template's order.`);
   }
-  const get = (row: string[], key: keyof typeof COLUMN): string => (row[COLUMN[key]] ?? "").trim();
-
   const warnings: string[] = [];
   const wines: Wine[] = [];
   data.forEach((row, i) => {
-    const name = get(row, "name");
-    if (!name) return; // ligne vide
-    const line = i + 2;
-    const qty = toInt(get(row, "qty"));
-    const vintage = toInt(get(row, "vintage"));
-    const peakStart = toInt(get(row, "peakStart"));
-    const peakEnd = toInt(get(row, "peakEnd"));
-    if (qty === null) warnings.push(`ligne ${line} (${name}) : quantité vide ou invalide`);
-    if (peakEnd === null) warnings.push(`ligne ${line} (${name}) : apogée fin vide ou invalide`);
-    if (peakStart !== null && peakEnd !== null && peakStart > peakEnd) warnings.push(`ligne ${line} (${name}) : apogée début > apogée fin`);
-    const tags = [...new Set(get(row, "tags").split(/[,;]/).map((t) => t.trim()).filter(Boolean))];
-    wines.push({
-      name, vintage, qty, peakStart, peakEnd, tags,
-      color: get(row, "color"),
-      region: get(row, "region"),
-      notes: get(row, "notes"),
-      ...computeStatus({ qty, peakStart, peakEnd }, year),
-    });
+    const wine = parseWineRow(row, year);
+    if (!wine) return;
+    warnings.push(...rowWarnings(wine, i + FIRST_DATA_LINE));
+    wines.push(wine);
   });
+  return { wines: sortForDrinking(wines), warnings };
+}
 
-  // Sort by status, years remaining, oldest vintage (non-vintage first), then name.
-  const sorted = wines.sort((a, b) =>
+/** Spreadsheet line of the first data row (the header is line 1). */
+const FIRST_DATA_LINE = 2;
+const TAG_SEPARATOR = /[,;]/;
+
+const cell = (row: string[], key: keyof typeof COLUMN): string => (row[COLUMN[key]] ?? "").trim();
+
+/** Returns null for a blank line (no wine name). */
+function parseWineRow(row: string[], year: number): Wine | null {
+  const name = cell(row, "name");
+  if (!name) return null;
+  const qty = toInt(cell(row, "qty"));
+  const peakStart = toInt(cell(row, "peakStart"));
+  const peakEnd = toInt(cell(row, "peakEnd"));
+  return {
+    name,
+    vintage: toInt(cell(row, "vintage")),
+    qty,
+    peakStart,
+    peakEnd,
+    tags: [...new Set(cell(row, "tags").split(TAG_SEPARATOR).map((t) => t.trim()).filter(Boolean))],
+    color: cell(row, "color"),
+    region: cell(row, "region"),
+    notes: cell(row, "notes"),
+    ...computeStatus({ qty, peakStart, peakEnd }, year),
+  };
+}
+
+function rowWarnings(wine: Wine, line: number): string[] {
+  const where = `ligne ${line} (${wine.name})`;
+  const warnings: string[] = [];
+  if (wine.qty === null) warnings.push(`${where} : quantité vide ou invalide`);
+  if (wine.peakEnd === null) warnings.push(`${where} : apogée fin vide ou invalide`);
+  if (wine.peakStart !== null && wine.peakEnd !== null && wine.peakStart > wine.peakEnd) warnings.push(`${where} : apogée début > apogée fin`);
+  return warnings;
+}
+
+/** Sort by status, years remaining, oldest vintage (non-vintage first), then name. */
+function sortForDrinking(wines: Wine[]): Wine[] {
+  return wines.sort((a, b) =>
     STATUS[a.status].rank - STATUS[b.status].rank
     || (a.yearsLeft ?? UNKNOWN_YEARS_LEFT) - (b.yearsLeft ?? UNKNOWN_YEARS_LEFT)
     || (a.vintage ?? 0) - (b.vintage ?? 0)
-    || a.name.localeCompare(b.name, "fr"));
-  return { wines: sorted, warnings };
+    || a.name.localeCompare(b.name, LOCALE));
 }
 
 export function totalBottles(list: Wine[]): number {

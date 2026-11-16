@@ -13,16 +13,14 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { demoCsv } from "./demo.ts";
 import { parseCsv, loadCsv } from "./lib/csv.ts";
-import { DEMO_SLUG, readSiteConfig, resolveCaves } from "./lib/config.ts";
+import { LOCALE, TIMEZONE } from "./lib/locale.ts";
+import { DEMO_SLUG, parseInventories, readSiteConfig } from "./lib/config.ts";
 import type { Cave, SiteConfig } from "./lib/config.ts";
 import { isInStock, toWines, totalBottles } from "./lib/wines.ts";
 import type { Wine } from "./lib/wines.ts";
 import { renderHtml } from "./render/cave-page.ts";
 import { HEADERS, ROOT_SERVICE_WORKER, serviceWorker } from "./render/service-worker.ts";
 import { render404, renderHome } from "./render/site.ts";
-
-const LOCALE = "fr-FR";
-const TIMEZONE = "Europe/Paris";
 
 // ─── Main ──────────────────────────────────────────────────────────────────
 interface LoadedCave {
@@ -88,7 +86,7 @@ async function main(): Promise<void> {
   const out = values.out ?? "dist";
 
   const site = await readSiteConfig();
-  const caves = resolveCaves();
+  const caves = parseInventories(process.env.INVENTORIES);
   if (caves.length === 0) console.warn("⚠ INVENTORIES is not set: only the home page, the 404 page and the demo are generated.");
 
   // Load and validate every cave before writing anything: if one source fails,

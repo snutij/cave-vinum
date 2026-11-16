@@ -57,8 +57,10 @@ ${body}
 `;
 }
 
-export const link = (href: string, label: string, main = false): string =>
-  href ? `<a class="h-btn${main ? " h-btn--main" : ""}" href="${esc(href)}">${esc(label)}</a>` : "";
+const buttonLink = (href: string, label: string, modifier: string): string =>
+  href ? `<a class="h-btn${modifier}" href="${esc(href)}">${esc(label)}</a>` : "";
+const link = (href: string, label: string): string => buttonLink(href, label, "");
+const primaryLink = (href: string, label: string): string => buttonLink(href, label, " h-btn--main");
 
 /** Generic home page. It never lists or links to the configured caves. */
 export function renderHome(site: SiteConfig, generatedAt: string): string {
@@ -67,7 +69,7 @@ export function renderHome(site: SiteConfig, generatedAt: string): string {
   <h1 class="h-title">Cave <em>Vinum</em></h1>
   <p class="h-tag">Chaque vin a son heure.</p>
   <p class="h-lead">Un site tout simple pour savoir quelle bouteille ouvrir en premier. Tu remplis un Google Sheet, Cave Vinum trie ta cave chaque jour : à boire en priorité, prêt à boire, à garder, avec des idées d'accords mets-vins.</p>
-  <div class="h-cta">${link(`./${DEMO_SLUG}/`, "Voir la démo", true)}${link(site.templateUrl, "Créer mon tableur")}${link(site.repoUrl, "Code source")}</div>
+  <div class="h-cta">${primaryLink(`./${DEMO_SLUG}/`, "Voir la démo")}${link(site.templateUrl, "Créer mon tableur")}${link(site.repoUrl, "Code source")}</div>
 </header>
 
 <section class="h-sec">
@@ -115,6 +117,6 @@ export function render404(): string {
   ${MONOGRAM}
   <h1 class="h-title">Cave <em>introuvable</em></h1>
   <p class="h-lead">Cette adresse ne correspond à aucune cave. Vérifie le lien qu'on t'a envoyé, en gardant la barre oblique finale (par exemple …/ton-prenom/).</p>
-  <div class="h-cta">${link("/", "Accueil", true)}${link(`/${DEMO_SLUG}/`, "Voir la démo")}</div>
+  <div class="h-cta">${primaryLink("/", "Accueil")}${link(`/${DEMO_SLUG}/`, "Voir la démo")}</div>
 </header>`);
 }

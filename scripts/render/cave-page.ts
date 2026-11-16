@@ -26,33 +26,54 @@ export interface CardLayout {
   index: number;
 }
 
-export function renderCard(w: Wine, { scale, year, index }: CardLayout): string {
-  const inStock = isInStock(w);
-  const colorKey = dotColor(w.color);
-  const range = w.peakEnd === null ? "" : renderPeakBar({ start: w.peakStart ?? w.peakEnd, end: w.peakEnd }, scale, year);
-  const statusClass = STATUS[w.status].css;
+/** Delay between the entrance animations of two consecutive cards. */
+const CARD_ANIMATION_STEP_MS = 70;
+
+function renderCardLabel(w: Wine): string {
   const { house, cuvee } = splitName(w.name);
-  const notes = w.notes
-    ? esc(w.notes).replace(NOTES_SEPARATOR, '<span class="v-sep" aria-hidden="true"> · </span>')
-    : "";
-  const search = norm([w.name, w.vintage ?? "", w.region, w.color, w.notes, ...w.tags].join(" "));
-  return `<article class="v-card${isDrinkSoon(w) ? " is-urgent" : ""}${inStock ? "" : " is-out"}" data-color="${esc(norm(w.color))}" data-tags="${esc(w.tags.map(norm).join("|"))}"
-  data-search="${esc(search)}" data-stock="${inStock ? 1 : 0}" data-qty="${w.qty ?? 0}" style="animation-delay:${index * 70}ms"${inStock ? "" : " hidden"}>
-  <div class="v-label">
+  return `<div class="v-label">
     <span class="v-ribbon" hidden>À ouvrir en premier</span>
-    ${w.color ? `<span class="v-kicker"><span class="v-dot v-dot--${colorKey}"></span>${esc(w.color)}</span>` : ""}
+    ${w.color ? `<span class="v-kicker"><span class="v-dot v-dot--${dotColor(w.color)}"></span>${esc(w.color)}</span>` : ""}
     <h2 class="v-house">${esc(house)}</h2>
     ${cuvee ? `<p class="v-cuvee">${esc(cuvee)}</p>` : ""}
     ${w.vintage !== null ? `<div class="v-vintage">${w.vintage}</div>` : ""}
     ${w.region ? `<p class="v-aoc">${esc(w.region)}</p>` : ""}
-  </div>
-  <div class="v-details">
-    <div class="v-top"><span class="v-status v-status--${statusClass}"><i></i>${esc(STATUS[w.status].label)}</span>
+  </div>`;
+}
+
+function renderCardTop(w: Wine): string {
+  return `<div class="v-top"><span class="v-status v-status--${STATUS[w.status].css}"><i></i>${esc(STATUS[w.status].label)}</span>
       <span class="v-qty" aria-label="${plural(w.qty ?? 0, "bouteille")}"><svg viewBox="0 0 11 30" aria-hidden="true"><path d="M4 .5h3v7.2c0 1.1 3.5 2.6 3.5 6.6v14.2c0 .8-.7 1.5-1.5 1.5H2c-.8 0-1.5-.7-1.5-1.5V14.3C.5 10.3 4 8.8 4 7.7z" fill="currentColor"/></svg><b><small>×</small>${w.qty ?? "?"}</b></span>
-    </div>
-    ${w.peakEnd !== null ? `<div class="v-time"><div class="v-time-head"><p class="v-cap">Apogée</p><span class="v-years"><strong>${w.peakStart ?? "?"} → ${w.peakEnd}</strong>${w.yearsLeft !== null ? `<span class="v-delta">${w.yearsLeft > 0 ? "+" : w.yearsLeft < 0 ? "−" : ""}${plural(Math.abs(w.yearsLeft), "an")}</span>` : ""}</span></div>${range}</div>` : ""}
-    ${w.tags.length ? `<div><p class="v-cap">Accords mets-vins</p><ul class="v-tags">${w.tags.map((t) => `<li data-tag="${esc(norm(t))}">${esc(t)}</li>`).join("")}</ul></div>` : ""}
-    ${notes ? `<div class="v-notes-wrap"><p class="v-cap">Notes / Service</p><p class="v-notes">${notes}</p></div>` : ""}
+    </div>`;
+}
+
+function renderCardTime(w: Wine, scale: YearScale, year: number): string {
+  if (w.peakEnd === null) return "";
+  const range = renderPeakBar({ start: w.peakStart ?? w.peakEnd, end: w.peakEnd }, scale, year);
+  return `<div class="v-time"><div class="v-time-head"><p class="v-cap">Apogée</p><span class="v-years"><strong>${w.peakStart ?? "?"} → ${w.peakEnd}</strong>${w.yearsLeft !== null ? `<span class="v-delta">${w.yearsLeft > 0 ? "+" : w.yearsLeft < 0 ? "−" : ""}${plural(Math.abs(w.yearsLeft), "an")}</span>` : ""}</span></div>${range}</div>`;
+}
+
+function renderCardTags(w: Wine): string {
+  return w.tags.length ? `<div><p class="v-cap">Accords mets-vins</p><ul class="v-tags">${w.tags.map((t) => `<li data-tag="${esc(norm(t))}">${esc(t)}</li>`).join("")}</ul></div>` : "";
+}
+
+function renderCardNotes(w: Wine): string {
+  if (!w.notes) return "";
+  const notes = esc(w.notes).replace(NOTES_SEPARATOR, '<span class="v-sep" aria-hidden="true"> · </span>');
+  return `<div class="v-notes-wrap"><p class="v-cap">Notes / Service</p><p class="v-notes">${notes}</p></div>`;
+}
+
+export function renderCard(w: Wine, { scale, year, index }: CardLayout): string {
+  const inStock = isInStock(w);
+  const search = norm([w.name, w.vintage ?? "", w.region, w.color, w.notes, ...w.tags].join(" "));
+  return `<article class="v-card${isDrinkSoon(w) ? " is-urgent" : ""}${inStock ? "" : " is-out"}" data-color="${esc(norm(w.color))}" data-tags="${esc(w.tags.map(norm).join("|"))}"
+  data-search="${esc(search)}" data-stock="${inStock ? 1 : 0}" data-qty="${w.qty ?? 0}" style="animation-delay:${index * CARD_ANIMATION_STEP_MS}ms"${inStock ? "" : " hidden"}>
+  ${renderCardLabel(w)}
+  <div class="v-details">
+    ${renderCardTop(w)}
+    ${renderCardTime(w, scale, year)}
+    ${renderCardTags(w)}
+    ${renderCardNotes(w)}
   </div>
 </article>`;
 }

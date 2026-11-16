@@ -25,8 +25,8 @@ export function defaultTitle(slug: string): string {
 }
 
 /** INVENTORIES: JSON array of { slug, url, title? }. Error messages never include the URLs. */
-export function resolveCaves(): Cave[] {
-  const raw = process.env.INVENTORIES?.trim();
+export function parseInventories(rawInventories: string | undefined): Cave[] {
+  const raw = rawInventories?.trim();
   if (!raw) return [];
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { throw new Error("INVENTORIES must be valid JSON."); }
