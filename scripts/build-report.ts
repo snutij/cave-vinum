@@ -2,7 +2,7 @@
  * Cave Vinum: generate the static wine-cellar site, one page per cave listed in INVENTORIES.
  *
  *   npm run build
- *   INVENTORIES='[{"slug": "papa", "url": "https://…/papa.csv", "title": "La cave de Papa"}]' npm run build
+ *   INVENTORIES='[{"slug": "alice", "url": "https://…/alice.csv", "title": "La cave d'Alice"}]' npm run build
  *
  * Node >= 22.18 (runs TypeScript natively). No runtime dependencies.
  * INVENTORIES is a JSON array of { slug, url, title? }. url is an HTTPS CSV URL or a relative local path.
@@ -576,7 +576,7 @@ self.addEventListener("activate", (e) => e.waitUntil(caches.delete("cave-vinum")
 `;
 
 // ─── Configuration ─────────────────────────────────────────────────────────
-/** "papa" → "Cave de Papa", "axel" → "Cave d'Axel", "jean-marc" → "Cave de Jean-Marc". */
+/** "bob" → "Cave de Bob", "alice" → "Cave d'Alice", "jean-marc" → "Cave de Jean-Marc". */
 function defaultTitle(slug: string): string {
   const name = slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join("-");
   return /^[aeiouy]/i.test(slug) ? `Cave d'${name}` : `Cave de ${name}`;
@@ -589,7 +589,7 @@ function resolveCaves(): Cave[] {
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { throw new Error("INVENTORIES must be valid JSON."); }
   if (!Array.isArray(parsed)) {
-    throw new Error('INVENTORIES must be a JSON array, for example [{"slug": "papa", "url": "https://…", "title": "La cave de Papa"}].');
+    throw new Error('INVENTORIES must be a JSON array, for example [{"slug": "alice", "url": "https://…", "title": "La cave d\'Alice"}].');
   }
   const seen = new Set<string>();
   return parsed.map((item: unknown, i): Cave => {
@@ -597,7 +597,7 @@ function resolveCaves(): Cave[] {
     if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${where} must be an object with "slug" and "url".`);
     const { slug, url, title } = item as Record<string, unknown>;
     if (typeof slug !== "string" || !SLUG.test(slug)) {
-      throw new Error(`${where}: "slug" is required and uses lowercase letters, digits and dashes (for example "papa").`);
+      throw new Error(`${where}: "slug" is required and uses lowercase letters, digits and dashes (for example "alice").`);
     }
     if (RESERVED_SLUGS.has(slug)) throw new Error(`${where}: "${slug}" is reserved, choose another slug.`);
     if (seen.has(slug)) throw new Error(`${where}: duplicate slug "${slug}".`);

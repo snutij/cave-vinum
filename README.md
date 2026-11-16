@@ -10,7 +10,7 @@ Turn a Google Sheet of wines into a mobile-friendly site that shows which bottle
 2. **Fill it in:** one row per wine. See [Inventory format](#inventory-format).
 3. **Publish it:** *File > Share > Publish to web*, choose the `Inventaire` tab and *Comma-separated values (.csv)*, then copy the link.
 4. **Host it:**
-   - **Someone already runs a Cave Vinum site:** send them the CSV link. Your cave will appear at their address, for example `https://example.com/papa/`.
+   - **Someone already runs a Cave Vinum site:** send them the CSV link. Your cave will appear at their address, for example `https://example.com/alice/`.
    - **On your own:** fork this repository, connect it to a static host (for example Cloudflare Pages: build command `npm run build`, output directory `dist`), and set `INVENTORIES` as described below.
 
 ## Configuration
@@ -19,16 +19,16 @@ Turn a Google Sheet of wines into a mobile-friendly site that shows which bottle
 
 ```bash
 INVENTORIES='[
-  { "slug": "justin", "url": "https://docs.google.com/…/pub?gid=…&output=csv", "title": "La cave de Justin" },
-  { "slug": "papa", "url": "https://docs.google.com/…/pub?gid=…&output=csv" }
+  { "slug": "alice", "url": "https://docs.google.com/…/pub?gid=…&output=csv", "title": "La cave d'Alice" },
+  { "slug": "bob", "url": "https://docs.google.com/…/pub?gid=…&output=csv" }
 ]' npm run build
 ```
 
 | Field | Required | Value |
 | --- | --- | --- |
-| `slug` | Yes | Page address: `papa` is published at `/papa/`. Lowercase letters, digits and dashes. `demo` is reserved. |
+| `slug` | Yes | Page address: `alice` is published at `/alice/`. Lowercase letters, digits and dashes. `demo` is reserved. |
 | `url` | Yes | HTTPS link to the published CSV, or a relative path to a local CSV for testing (for example `data/inventory.csv`). |
-| `title` | No | Shown on the page. Defaults to "Cave de Papa", "Cave d'Axel"… |
+| `title` | No | Shown on the page. Defaults to "Cave de Bob", "Cave d'Alice"… |
 
 Set `INVENTORIES` in the environment of whichever service runs the build and keep it out of the repository: it contains your CSV links.
 
