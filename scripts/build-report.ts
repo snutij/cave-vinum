@@ -2,7 +2,7 @@
  * Cave Vinum: generate the static wine-cellar site, one page per cave listed in INVENTORIES.
  *
  *   npm run build
- *   INVENTORIES='[{"slug": "alice", "url": "https://…/alice.csv", "title": "La cave d'Alice"}]' npm run build
+ *   INVENTORIES='[{"slug": "alice", "url": "https://…/alice.csv", "title": "Cave Alice"}]' npm run build
  *
  * Node >= 22.18 (runs TypeScript natively). No runtime dependencies.
  * INVENTORIES is a JSON array of { slug, url, title? }. url is an HTTPS CSV URL or a relative local path.
