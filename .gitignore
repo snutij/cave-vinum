@@ -1,5 +1,4 @@
 dist/
 node_modules/
-# Ignore CSV exports except for the default local inventory file.
+# Inventories are personal data: never commit CSV exports. Point INVENTORIES at a published URL instead.
 *.csv
-!data/inventory.csv
