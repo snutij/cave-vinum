@@ -29,14 +29,41 @@ interface Wine {
   yearsLeft: number | null;
 }
 
-const STATUS: Record<Status, { rank: number; label: string }> = {
-  urgent: { rank: 1, label: "Urgent (apogée dépassée)" },
-  "this-year": { rank: 2, label: "À boire cette année" },
-  ready: { rank: 3, label: "Prêt à boire" },
-  keep: { rank: 4, label: "À garder (trop jeune)" },
-  incomplete: { rank: 5, label: "Infos à compléter" },
-  empty: { rank: 6, label: "Épuisé" },
+const STATUS_KEY = {
+  URGENT: "urgent",
+  THIS_YEAR: "this-year",
+  READY: "ready",
+  KEEP: "keep",
+  INCOMPLETE: "incomplete",
+  EMPTY: "empty",
+} as const satisfies Record<string, Status>;
+
+/** css is the modifier used by the status badge and the card. */
+const STATUS: Record<Status, { rank: number; label: string; css: string }> = {
+  [STATUS_KEY.URGENT]: { rank: 1, label: "Urgent (apogée dépassée)", css: "urgent" },
+  [STATUS_KEY.THIS_YEAR]: { rank: 2, label: "À boire cette année", css: "urgent" },
+  [STATUS_KEY.READY]: { rank: 3, label: "Prêt à boire", css: "ready" },
+  [STATUS_KEY.KEEP]: { rank: 4, label: "À garder (trop jeune)", css: "wait" },
+  [STATUS_KEY.INCOMPLETE]: { rank: 5, label: "Infos à compléter", css: "neutral" },
+  [STATUS_KEY.EMPTY]: { rank: 6, label: "Épuisé", css: "out" },
 };
+
+const isInStock = (w: Wine): boolean => w.status !== STATUS_KEY.EMPTY;
+const isDrinkSoon = (w: Wine): boolean => STATUS[w.status].css === "urgent";
+
+const LOCALE = "fr-FR";
+const TIMEZONE = "Europe/Paris";
+const FETCH_TIMEOUT_MS = 20_000;
+const MAX_FETCH_ATTEMPTS = 3;
+const RETRY_BACKOFF_MS = 2_000;
+const HTTP_TOO_MANY_REQUESTS = 429;
+const HTTP_SERVER_ERROR = 500;
+/** Sort fallbacks: wines with unknown peak sort last, unknown colours after known ones. */
+const UNKNOWN_YEARS_LEFT = 999;
+const UNRANKED_COLOR = 99;
+/** A wine name is "House - Cuvée"; notes separate items with " · ". */
+const NAME_SEPARATOR = " - ";
+const NOTES_SEPARATOR = /\s+·\s+/g;
 
 /** Tags offered by the filter, in order (unknown tags are appended). */
 const KNOWN_TAGS = [
@@ -92,7 +119,18 @@ const toInt = (v: string | undefined): number | null => {
 const plural = (n: number, word: string): string => `${n} ${word}${Math.abs(n) > 1 ? "s" : ""}`;
 
 const COLOR_ORDER = ["rouge", "blanc", "rose", "bulles"];
-const colorRank = (key: string): number => (COLOR_ORDER.indexOf(key) + 1) || 99;
+const colorRank = (key: string): number => (COLOR_ORDER.indexOf(key) + 1) || UNRANKED_COLOR;
+/** Colours with their own dot; any other colour uses the "other" dot. */
+const DOT_COLORS = ["rouge", "blanc", "rose"];
+const dotColor = (color: string): string => (DOT_COLORS.includes(norm(color)) ? norm(color) : "other");
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isMissingFile = (err: unknown): boolean => err instanceof Error && "code" in err && err.code === "ENOENT";
+
+function splitName(name: string): { house: string; cuvee: string } {
+  const [house = "", ...cuvee] = name.split(NAME_SEPARATOR);
+  return { house, cuvee: cuvee.join(NAME_SEPARATOR) };
+}
 
 /** RFC 4180 CSV parser: quotes, escaped "", commas and newlines in fields, CRLF, and BOM. */
 export function parseCsv(text: string): string[][] {
@@ -101,25 +139,44 @@ export function parseCsv(text: string): string[][] {
   let row: string[] = [];
   let field = "";
   let inQuotes = false;
+  const endField = (): void => { row.push(field); field = ""; };
+  const endRow = (): void => { endField(); rows.push(row); row = []; };
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
+    const next = s[i + 1];
     if (inQuotes) {
       if (c !== '"') field += c;
-      else if (s[i + 1] === '"') { field += '"'; i++; }
+      else if (next === '"') { field += '"'; i++; }
       else inQuotes = false;
     } else if (c === '"') inQuotes = true;
-    else if (c === ",") { row.push(field); field = ""; }
-    else if (c === "\n" || c === "\r") {
-      if (c === "\r" && s[i + 1] === "\n") i++;
-      row.push(field); rows.push(row); row = []; field = "";
-    } else field += c;
+    else if (c === ",") endField();
+    else if (c === "\r" && next === "\n") { endRow(); i++; }
+    else if (c === "\n" || c === "\r") endRow();
+    else field += c;
   }
   if (inQuotes) throw new Error("Invalid CSV: unterminated quoted field.");
-  if (field !== "" || row.length > 0) { row.push(field); rows.push(row); }
+  if (field !== "" || row.length > 0) endRow();
   return rows;
 }
 
 // ─── Fetch CSV ─────────────────────────────────────────────────────────────
+type FetchAttempt = { text: string } | { reason: string; retryable: boolean };
+
+async function attemptFetch(url: URL): Promise<FetchAttempt> {
+  const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }).catch((err: unknown) => err);
+  if (!(res instanceof Response)) {
+    return { reason: res instanceof Error && res.name === "TimeoutError" ? "request timed out" : "network error", retryable: true };
+  }
+  if (!res.ok) {
+    return { reason: `HTTP ${res.status}`, retryable: res.status >= HTTP_SERVER_ERROR || res.status === HTTP_TOO_MANY_REQUESTS };
+  }
+  // A CSV URL may return an HTML error page instead of the export.
+  if ((res.headers.get("content-type") ?? "").includes("html")) {
+    throw new Error("The CSV URL returned HTML instead of CSV (is the sheet published as CSV?).");
+  }
+  return { text: await res.text() };
+}
+
 async function fetchCsv(rawUrl: string): Promise<string> {
   let url: URL;
   try { url = new URL(rawUrl.trim()); } catch { throw new Error("The CSV URL must be a valid URL."); }
@@ -128,38 +185,28 @@ async function fetchCsv(rawUrl: string): Promise<string> {
     throw new Error("The CSV URL must use HTTPS.");
   }
   let reason = "";
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20_000) })
-      .catch((err: unknown) => new Error(err instanceof Error && err.name === "TimeoutError" ? "request timed out" : "network error"));
-    if (res instanceof Error) {
-      reason = res.message;
-    } else if (res.ok) {
-      // A CSV URL may return an HTML error page instead of the export.
-      if ((res.headers.get("content-type") ?? "").includes("html")) {
-        throw new Error("The CSV URL returned HTML instead of CSV (is the sheet published as CSV?).");
-      }
-      return await res.text();
-    } else {
-      reason = `HTTP ${res.status}`;
-      if (res.status < 500 && res.status !== 429) break;
-    }
-    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
+  for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
+    const result = await attemptFetch(url);
+    if ("text" in result) return result.text;
+    reason = result.reason;
+    if (!result.retryable || attempt === MAX_FETCH_ATTEMPTS) break;
+    await new Promise((resolve) => setTimeout(resolve, attempt * RETRY_BACKOFF_MS));
   }
   throw new Error(`Could not download CSV (${reason}).`);
 }
 
 // ─── CSV to wines ──────────────────────────────────────────────────────────
-function computeStatus(qty: number | null, start: number | null, end: number | null, year: number): Pick<Wine, "status" | "yearsLeft"> {
-  if (qty !== null && qty <= 0) return { status: "empty", yearsLeft: null };
+function computeStatus({ qty, peakStart: start, peakEnd: end }: Pick<Wine, "qty" | "peakStart" | "peakEnd">, year: number): Pick<Wine, "status" | "yearsLeft"> {
+  if (qty !== null && qty <= 0) return { status: STATUS_KEY.EMPTY, yearsLeft: null };
   const yearsLeft = end === null ? null : end - year;
-  if (qty === null || end === null || (start !== null && start > end)) return { status: "incomplete", yearsLeft };
-  if (end < year) return { status: "urgent", yearsLeft };
-  if (end === year) return { status: "this-year", yearsLeft };
-  if (start === null || year >= start) return { status: "ready", yearsLeft };
-  return { status: "keep", yearsLeft };
+  if (qty === null || end === null || (start !== null && start > end)) return { status: STATUS_KEY.INCOMPLETE, yearsLeft };
+  if (end < year) return { status: STATUS_KEY.URGENT, yearsLeft };
+  if (end === year) return { status: STATUS_KEY.THIS_YEAR, yearsLeft };
+  if (start === null || year >= start) return { status: STATUS_KEY.READY, yearsLeft };
+  return { status: STATUS_KEY.KEEP, yearsLeft };
 }
 
-function toWines(rows: string[][], year: number, warnings: string[]): Wine[] {
+function toWines(rows: string[][], year: number): { wines: Wine[]; warnings: string[] } {
   const [header, ...data] = rows;
   if (!header) throw new Error("CSV vide.");
   if (header.length < CSV_COLUMN_COUNT) {
@@ -167,6 +214,7 @@ function toWines(rows: string[][], year: number, warnings: string[]): Wine[] {
   }
   const get = (row: string[], key: keyof typeof COLUMN): string => (row[COLUMN[key]] ?? "").trim();
 
+  const warnings: string[] = [];
   const wines: Wine[] = [];
   data.forEach((row, i) => {
     const name = get(row, "name");
@@ -185,38 +233,41 @@ function toWines(rows: string[][], year: number, warnings: string[]): Wine[] {
       color: get(row, "color"),
       region: get(row, "region"),
       notes: get(row, "notes"),
-      ...computeStatus(qty, peakStart, peakEnd, year),
+      ...computeStatus({ qty, peakStart, peakEnd }, year),
     });
   });
 
   // Sort by status, years remaining, oldest vintage (non-vintage first), then name.
-  return wines.sort((a, b) =>
+  const sorted = wines.sort((a, b) =>
     STATUS[a.status].rank - STATUS[b.status].rank
-    || (a.yearsLeft ?? 999) - (b.yearsLeft ?? 999)
+    || (a.yearsLeft ?? UNKNOWN_YEARS_LEFT) - (b.yearsLeft ?? UNKNOWN_YEARS_LEFT)
     || (a.vintage ?? 0) - (b.vintage ?? 0)
     || a.name.localeCompare(b.name, "fr"));
+  return { wines: sorted, warnings };
 }
 
 // ─── Render HTML ───────────────────────────────────────────────────────────
-function renderCard(w: Wine, scale: { min: number; max: number }, year: number, index: number): string {
-  const inStock = w.status !== "empty";
-  const colorKey = ["rouge", "blanc", "rose"].includes(norm(w.color)) ? norm(w.color) : "other";
+interface CardLayout {
+  scale: { min: number; max: number };
+  year: number;
+  index: number;
+}
+
+function renderCard(w: Wine, { scale, year, index }: CardLayout): string {
+  const inStock = isInStock(w);
+  const colorKey = dotColor(w.color);
   const pct = (y: number) => (((y - scale.min) / (scale.max - scale.min)) * 100).toFixed(1);
   const range = w.peakEnd === null ? "" : `<div class="v-track-wrap"><div class="v-bar" style="--n:${scale.max - scale.min}">
     <span class="v-window" style="left:${pct(w.peakStart ?? w.peakEnd)}%;width:${(Number(pct(w.peakEnd + 1)) - Number(pct(w.peakStart ?? w.peakEnd))).toFixed(1)}%"></span>
     <span class="v-now" style="left:${pct(year + 0.5)}%"><span>${year}</span></span>
   </div><div class="v-scale"><span>${scale.min}</span><span>${scale.max - 1}</span></div></div>`;
-  const statusClass = w.status === "urgent" || w.status === "this-year" ? "urgent"
-    : w.status === "ready" ? "ready" : w.status === "keep" ? "wait"
-    : w.status === "empty" ? "out" : "neutral";
-  const parts = w.name.split(" - ");
-  const house = parts[0];
-  const cuvee = parts.slice(1).join(" - ");
+  const statusClass = STATUS[w.status].css;
+  const { house, cuvee } = splitName(w.name);
   const notes = w.notes
-    ? esc(w.notes).replace(/\s+·\s+/g, '<span class="v-sep" aria-hidden="true"> · </span>')
+    ? esc(w.notes).replace(NOTES_SEPARATOR, '<span class="v-sep" aria-hidden="true"> · </span>')
     : "";
   const search = norm([w.name, w.vintage ?? "", w.region, w.color, w.notes, ...w.tags].join(" "));
-  return `<article class="v-card${statusClass === "urgent" ? " is-urgent" : ""}${inStock ? "" : " is-out"}" data-color="${esc(norm(w.color))}" data-tags="${esc(w.tags.map(norm).join("|"))}"
+  return `<article class="v-card${isDrinkSoon(w) ? " is-urgent" : ""}${inStock ? "" : " is-out"}" data-color="${esc(norm(w.color))}" data-tags="${esc(w.tags.map(norm).join("|"))}"
   data-search="${esc(search)}" data-stock="${inStock ? 1 : 0}" data-qty="${w.qty ?? 0}" style="animation-delay:${index * 70}ms"${inStock ? "" : " hidden"}>
   <div class="v-label">
     <span class="v-ribbon" hidden>À ouvrir en premier</span>
@@ -237,28 +288,23 @@ function renderCard(w: Wine, scale: { min: number; max: number }, year: number, 
 </article>`;
 }
 
+function totalBottles(list: Wine[]): number {
+  return list.reduce((sum, w) => sum + (w.qty ?? 0), 0);
+}
+
 function renderHtml(wines: Wine[], year: number, generatedAt: string, title?: string): string {
-  const stock = wines.filter((w) => w.status !== "empty");
-  const bottles = (list: Wine[]) => list.reduce((sum, w) => sum + (w.qty ?? 0), 0);
+  const stock = wines.filter(isInStock);
+  const bottles = totalBottles;
   const by = (...st: Status[]) => bottles(stock.filter((w) => st.includes(w.status)));
   const years = wines.flatMap((w) => [w.peakStart, w.peakEnd]).filter((y): y is number => y !== null);
   const scale = { min: Math.min(year, ...years), max: Math.max(year, ...years) + 1 };
 
   const colors = [...new Map(stock.filter((w) => w.color).map((w) => [norm(w.color), w.color] as const))]
     .sort(([a], [b]) => colorRank(a) - colorRank(b));
-  const colorChips = colors.map(([key, label]) => {
-    const n = bottles(stock.filter((w) => norm(w.color) === key));
-    return `<label class="chip"><input type="radio" name="color" value="${esc(key)}"> ${esc(label)} <small>${n}</small></label>`;
-  }).join("");
-
   const extraTags = [...new Set(stock.flatMap((w) => w.tags))].filter((t) => !KNOWN_TAGS.some((k) => norm(k) === norm(t)));
-  const mealOptions = [...KNOWN_TAGS, ...extraTags].map((t) => {
-    const n = stock.filter((w) => w.tags.some((x) => norm(x) === norm(t))).length;
-    return `<option value="${esc(norm(t))}">${esc(t)} (${n})</option>`;
-  }).join("");
 
-  const urgent = by("urgent", "this-year");
-  const ready = by("ready");
+  const urgent = by(STATUS_KEY.URGENT, STATUS_KEY.THIS_YEAR);
+  const ready = by(STATUS_KEY.READY);
 
   return `<!doctype html>
 <html lang="fr">
@@ -341,7 +387,7 @@ body{font:15px/1.5 "Jost","Avenir Next","Helvetica Neue",system-ui,-apple-system
       <div class="v-dishes"><span class="v-dishes-label">Quel plat ?</span><div class="v-chips" id="v-chips" role="group" aria-label="Quel plat ?"><button type="button" class="v-chip" data-dish="" aria-pressed="true">Tous</button>${[...KNOWN_TAGS, ...extraTags].map((t) => `<button type="button" class="v-chip${stock.some((w) => w.tags.some((x) => norm(x) === norm(t))) ? "" : " is-zero"}" data-dish="${esc(norm(t))}" aria-pressed="false">${esc(t)} <small>${stock.filter((w) => w.tags.some((x) => norm(x) === norm(t))).length}</small></button>`).join("")}</div></div>
     </section>
     <section class="v-list" id="v-list" aria-label="Vins">
-${wines.map((w, i) => renderCard(w, scale, year, i)).join("\n")}
+${wines.map((w, i) => renderCard(w, { scale, year, index: i })).join("\n")}
       <div class="v-empty" id="v-empty" hidden><span>Aucun vin adapté dans ta cave pour ce choix.</span></div>
     </section>
   </main>
@@ -393,6 +439,7 @@ ${wines.map((w, i) => renderCard(w, scale, year, i)).join("\n")}
   q.addEventListener("input", render);
   document.getElementById("v-out").addEventListener("change", function (event) { showOut = event.target.checked; render(); });
   render();
+  // Registration is best-effort: the page works without the offline cache.
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(function () {});
 })();
 </script>
@@ -594,8 +641,8 @@ function resolveCaves(): Cave[] {
   const seen = new Set<string>();
   return parsed.map((item: unknown, i): Cave => {
     const where = `INVENTORIES[${i}]`;
-    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${where} must be an object with "slug" and "url".`);
-    const { slug, url, title } = item as Record<string, unknown>;
+    if (!isRecord(item)) throw new Error(`${where} must be an object with "slug" and "url".`);
+    const { slug, url, title } = item;
     if (typeof slug !== "string" || !SLUG.test(slug)) {
       throw new Error(`${where}: "slug" is required and uses lowercase letters, digits and dashes (for example "alice").`);
     }
@@ -609,12 +656,16 @@ function resolveCaves(): Cave[] {
 }
 
 async function readSiteConfig(): Promise<SiteConfig> {
-  const raw = await readFile(SITE_CONFIG_FILE, "utf8").catch(() => "{}");
+  const raw = await readFile(SITE_CONFIG_FILE, "utf8").catch((err: unknown) => {
+    if (isMissingFile(err)) return "{}";
+    throw err;
+  });
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { throw new Error(`${SITE_CONFIG_FILE} must be valid JSON.`); }
-  const obj = (parsed && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+  const obj = isRecord(parsed) ? parsed : {};
   const pick = (key: keyof SiteConfig): string => {
-    const v = typeof obj[key] === "string" ? (obj[key] as string).trim() : "";
+    const value = obj[key];
+    const v = typeof value === "string" ? value.trim() : "";
     if (v && !v.startsWith("https://")) throw new Error(`${SITE_CONFIG_FILE}: "${key}" must be an HTTPS URL or empty.`);
     return v;
   };
@@ -628,7 +679,7 @@ async function loadCsv(url: string): Promise<string> {
     throw new Error('A local "url" must be a relative path inside the project (for example "data/inventory.csv").');
   }
   return readFile(url, "utf8").catch((err: unknown) => {
-    if (err instanceof Error && "code" in err && err.code === "ENOENT") throw new Error("Local CSV file not found.");
+    if (isMissingFile(err)) throw new Error("Local CSV file not found.");
     throw err;
   });
 }
@@ -639,7 +690,7 @@ async function main(): Promise<void> {
     options: { out: { type: "string", default: "dist" }, year: { type: "string" } },
   });
   const now = new Date();
-  const parisYear = Number(new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", year: "numeric" }).format(now));
+  const parisYear = Number(new Intl.DateTimeFormat(LOCALE, { timeZone: TIMEZONE, year: "numeric" }).format(now));
   const year = values.year ? Number(values.year) : parisYear;
   if (!Number.isInteger(year)) throw new Error("--year must be a year (for example, 2027).");
 
@@ -650,12 +701,10 @@ async function main(): Promise<void> {
   // Load and validate every cave before writing anything: if one source fails,
   // the build fails and the host keeps serving the previous deployment for everyone.
   const loaded: { slug: string; title: string; wines: Wine[]; warnings: string[] }[] = [];
-  const demoWarnings: string[] = [];
-  loaded.push({ slug: DEMO_SLUG, title: "Cave de démonstration", wines: toWines(parseCsv(demoCsv(year)), year, demoWarnings), warnings: [] });
+  loaded.push({ slug: DEMO_SLUG, title: "Cave de démonstration", wines: toWines(parseCsv(demoCsv(year)), year).wines, warnings: [] });
   for (const cave of caves) {
     try {
-      const warnings: string[] = [];
-      const wines = toWines(parseCsv(await loadCsv(cave.url)), year, warnings);
+      const { wines, warnings } = toWines(parseCsv(await loadCsv(cave.url)), year);
       if (wines.length === 0) throw new Error("No wines found in the CSV; refusing to generate an empty report.");
       loaded.push({ slug: cave.slug, title: cave.title, wines, warnings: warnings.map((w) => `/${cave.slug}/ ${w}`) });
     } catch (err: unknown) {
@@ -663,7 +712,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const generatedAt = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", dateStyle: "long", timeStyle: "short" }).format(now);
+  const generatedAt = new Intl.DateTimeFormat(LOCALE, { timeZone: TIMEZONE, dateStyle: "long", timeStyle: "short" }).format(now);
   const out = values.out ?? "dist";
   await mkdir(out, { recursive: true });
   await Promise.all([
@@ -683,8 +732,8 @@ async function main(): Promise<void> {
       writeFile(join(dir, "sw.js"), serviceWorker(slug)),
     ]);
     for (const w of warnings) console.warn(`⚠ ${w}`);
-    const inStock = wines.filter((w) => w.status !== "empty");
-    const total = inStock.reduce((s, w) => s + (w.qty ?? 0), 0);
+    const inStock = wines.filter(isInStock);
+    const total = totalBottles(inStock);
     console.log(`✓ ${inStock.length} wine references in stock, ${total} bottles → ${join(dir, "index.html")}`);
   }
 }
