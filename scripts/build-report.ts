@@ -40,16 +40,29 @@ const demoCave = (year: number): LoadedCave => ({
 async function loadCave(cave: Cave, year: number): Promise<LoadedCave> {
   try {
     const { wines, warnings } = toWines(parseCsv(await loadCsv(cave.url)), year);
-    if (wines.length === 0) throw new Error("No wines found in the CSV; refusing to generate an empty report.");
-    return { slug: cave.slug, title: cave.title, wines, warnings: warnings.map((w) => `/${cave.slug}/ ${w}`) };
-  } catch (err: unknown) {
-    throw new Error(`/${cave.slug}/: ${err instanceof Error ? err.message : "Unknown error"}`);
+    if (wines.length === 0)
+      throw new Error("No wines found in the CSV; refusing to generate an empty report.");
+    return {
+      slug: cave.slug,
+      title: cave.title,
+      wines,
+      warnings: warnings.map((w) => `/${cave.slug}/ ${w}`),
+    };
+  } catch (error: unknown) {
+    throw new Error(`/${cave.slug}/: ${error instanceof Error ? error.message : "Unknown error"}`, {
+      cause: error,
+    });
   }
 }
 
 function resolveYear(requested: string | undefined, now: Date): number {
-  const year = requested ? Number(requested) : Number(new Intl.DateTimeFormat(LOCALE, { timeZone: TIMEZONE, year: "numeric" }).format(now));
-  if (!Number.isInteger(year)) throw new Error("--year must be a year (for example, 2027).");
+  const year =
+    requested !== undefined && requested !== ""
+      ? Number(requested)
+      : Number(
+          new Intl.DateTimeFormat(LOCALE, { timeZone: TIMEZONE, year: "numeric" }).format(now),
+        );
+  if (!Number.isInteger(year)) throw new TypeError("--year must be a year (for example, 2027).");
   return year;
 }
 
@@ -65,7 +78,12 @@ async function writeSiteRoot(out: string, site: SiteConfig, generatedAt: string)
   console.log(`✓ home page → ${join(out, "index.html")}`);
 }
 
-async function writeCave(out: string, cave: LoadedCave, year: number, generatedAt: string): Promise<void> {
+async function writeCave(
+  out: string,
+  cave: LoadedCave,
+  year: number,
+  generatedAt: string,
+): Promise<void> {
   const dir = join(out, cave.slug);
   await mkdir(dir, { recursive: true });
   await Promise.all([
@@ -74,7 +92,9 @@ async function writeCave(out: string, cave: LoadedCave, year: number, generatedA
   ]);
   for (const w of cave.warnings) console.warn(`⚠ ${w}`);
   const inStock = cave.wines.filter(isInStock);
-  console.log(`✓ ${inStock.length} wine references in stock, ${totalBottles(inStock)} bottles → ${join(dir, "index.html")}`);
+  console.log(
+    `✓ ${inStock.length} wine references in stock, ${totalBottles(inStock)} bottles → ${join(dir, "index.html")}`,
+  );
 }
 
 async function main(): Promise<void> {
@@ -87,20 +107,29 @@ async function main(): Promise<void> {
 
   const site = await readSiteConfig();
   const caves = parseInventories(process.env.INVENTORIES);
-  if (caves.length === 0) console.warn("⚠ INVENTORIES is not set: only the home page, the 404 page and the demo are generated.");
+  if (caves.length === 0)
+    console.warn(
+      "⚠ INVENTORIES is not set: only the home page, the 404 page and the demo are generated.",
+    );
 
   // Load and validate every cave before writing anything: if one source fails,
   // the build fails and the host keeps serving the previous deployment for everyone.
   const loaded = [demoCave(year)];
   for (const cave of caves) loaded.push(await loadCave(cave, year));
 
-  const generatedAt = new Intl.DateTimeFormat(LOCALE, { timeZone: TIMEZONE, dateStyle: "long", timeStyle: "short" }).format(now);
+  const generatedAt = new Intl.DateTimeFormat(LOCALE, {
+    timeZone: TIMEZONE,
+    dateStyle: "long",
+    timeStyle: "short",
+  }).format(now);
   await writeSiteRoot(out, site, generatedAt);
   for (const cave of loaded) await writeCave(out, cave, year, generatedAt);
 }
 
-main().catch((err: unknown) => {
+try {
+  await main();
+} catch (error: unknown) {
   // Print only the message, never the full error object, which could contain the URL.
-  console.error(`✗ ${err instanceof Error ? err.message : "Unknown error"}`);
+  console.error(`✗ ${error instanceof Error ? error.message : "Unknown error"}`);
   process.exitCode = 1;
-});
+}
