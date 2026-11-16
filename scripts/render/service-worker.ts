@@ -1,7 +1,9 @@
 // Offline support: try the network first, then fall back to the cache.
 // Each cave has its own cache and only handles files in its own folder, so one
 // cave's worker never serves another cave's page.
-export const serviceWorker = (slug: string): string => `const CACHE = ${JSON.stringify(`cave-vinum-${slug}`)};
+export const serviceWorker = (
+  slug: string,
+): string => `const CACHE = ${JSON.stringify(`cave-vinum-${slug}`)};
 const BASE = new URL("./", self.location).pathname;
 // Own files only: the folder itself or a file directly in it (never a sub-folder such as another cave).
 const own = (u) => {

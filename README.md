@@ -67,7 +67,9 @@ GitHub Actions only updates the timestamp; it does not generate or commit the re
 
 ## Repository checks and updates
 
-Pull requests and pushes to `main` run type-checking and `npm audit`, failing on moderate-or-higher dependency vulnerabilities. CodeQL analyzes JavaScript/TypeScript on pushes, pull requests, and weekly.
+Pull requests and pushes to `main` run type-checking, linting ([Oxlint](https://oxc.rs/docs/guide/usage/linter), strictest categories), formatting checks ([Oxfmt](https://oxc.rs/docs/guide/usage/formatter.html)) and `npm audit`, failing on moderate-or-higher dependency vulnerabilities. CodeQL analyzes JavaScript/TypeScript on pushes, pull requests, and weekly.
+
+Locally, `npm install` enables a pre-commit hook (`.githooks/pre-commit`) that runs `npm run check` (type-check, lint, format check). Use `npm run format` to apply formatting.
 
 Dependabot checks npm dependencies and GitHub Actions daily, grouping minor and patch dependency updates. A dedicated workflow approves eligible minor/patch updates and enables squash auto-merge; major updates require manual review. Merging requires successful quality checks, CodeQL analysis, and the Cloudflare Pages build, enforced by a repository ruleset. Keep GitHub Actions pinned to full commit SHAs when changing workflow dependencies.
 

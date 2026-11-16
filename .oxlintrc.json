@@ -1,0 +1,39 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "node", "promise"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "error",
+    "style": "error"
+  },
+  "options": { "typeAware": true, "typeCheck": true, "reportUnusedDisableDirectives": "error" },
+  "rules": {
+    "eslint/one-var": "off",
+    "eslint/sort-keys": "off",
+    "eslint/sort-imports": "off",
+    "eslint/func-style": "off",
+    "eslint/no-ternary": "off",
+    "eslint/curly": "off",
+    "eslint/id-length": "off",
+    "eslint/no-magic-numbers": "off",
+    "eslint/init-declarations": "off",
+    "eslint/capitalized-comments": "off",
+    "import/no-named-export": "off",
+    "import/group-exports": "off",
+    "import/exports-last": "off",
+    "import/no-nodejs-modules": "off",
+    "eslint/max-statements": "off",
+    "eslint/max-params": "off",
+    "eslint/max-lines-per-function": "off",
+    "eslint/no-await-in-loop": "off",
+    "eslint/no-duplicate-imports": "off",
+    "import/max-dependencies": "off",
+    "import/prefer-default-export": "off",
+    "promise/avoid-new": "off",
+    "typescript/prefer-readonly-parameter-types": "off",
+    "unicorn/no-null": "off"
+  },
+  "ignorePatterns": ["dist", "node_modules"]
+}

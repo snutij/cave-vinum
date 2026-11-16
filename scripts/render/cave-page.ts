@@ -1,5 +1,18 @@
 import { CAVE_CLIENT_JS, CAVE_CSS } from "./cave-page-assets.ts";
-import { hasTag, isDrinkSoon, isInStock, KNOWN_TAGS, sameTag, STATUS, STATUS_KEY, colorRank, dotColor, splitName, totalBottles, NOTES_SEPARATOR } from "../lib/wines.ts";
+import {
+  hasTag,
+  isDrinkSoon,
+  isInStock,
+  KNOWN_TAGS,
+  sameTag,
+  STATUS,
+  STATUS_KEY,
+  colorRank,
+  dotColor,
+  splitName,
+  totalBottles,
+  NOTES_SEPARATOR,
+} from "../lib/wines.ts";
 import type { Status, Wine } from "../lib/wines.ts";
 import { esc, norm, plural } from "../lib/text.ts";
 
@@ -9,9 +22,14 @@ interface YearScale {
 }
 
 /** Position of a year on the timeline, as a percentage string with one decimal. */
-const percentOnScale = (y: number, scale: YearScale): string => (((y - scale.min) / (scale.max - scale.min)) * 100).toFixed(1);
+const percentOnScale = (y: number, scale: YearScale): string =>
+  (((y - scale.min) / (scale.max - scale.min)) * 100).toFixed(1);
 
-function renderPeakBar(peak: { start: number; end: number }, scale: YearScale, year: number): string {
+function renderPeakBar(
+  peak: { start: number; end: number },
+  scale: YearScale,
+  year: number,
+): string {
   const left = percentOnScale(peak.start, scale);
   const width = (Number(percentOnScale(peak.end + 1, scale)) - Number(left)).toFixed(1);
   return `<div class="v-track-wrap"><div class="v-bar" style="--n:${scale.max - scale.min}">
@@ -36,7 +54,7 @@ function renderCardLabel(w: Wine): string {
     ${w.color ? `<span class="v-kicker"><span class="v-dot v-dot--${dotColor(w.color)}"></span>${esc(w.color)}</span>` : ""}
     <h2 class="v-house">${esc(house)}</h2>
     ${cuvee ? `<p class="v-cuvee">${esc(cuvee)}</p>` : ""}
-    ${w.vintage !== null ? `<div class="v-vintage">${w.vintage}</div>` : ""}
+    ${w.vintage === null ? "" : `<div class="v-vintage">${w.vintage}</div>`}
     ${w.region ? `<p class="v-aoc">${esc(w.region)}</p>` : ""}
   </div>`;
 }
@@ -50,16 +68,21 @@ function renderCardTop(w: Wine): string {
 function renderCardTime(w: Wine, scale: YearScale, year: number): string {
   if (w.peakEnd === null) return "";
   const range = renderPeakBar({ start: w.peakStart ?? w.peakEnd, end: w.peakEnd }, scale, year);
-  return `<div class="v-time"><div class="v-time-head"><p class="v-cap">Apogée</p><span class="v-years"><strong>${w.peakStart ?? "?"} → ${w.peakEnd}</strong>${w.yearsLeft !== null ? `<span class="v-delta">${w.yearsLeft > 0 ? "+" : w.yearsLeft < 0 ? "−" : ""}${plural(Math.abs(w.yearsLeft), "an")}</span>` : ""}</span></div>${range}</div>`;
+  return `<div class="v-time"><div class="v-time-head"><p class="v-cap">Apogée</p><span class="v-years"><strong>${w.peakStart ?? "?"} → ${w.peakEnd}</strong>${w.yearsLeft === null ? "" : `<span class="v-delta">${deltaSign(w.yearsLeft)}${plural(Math.abs(w.yearsLeft), "an")}</span>`}</span></div>${range}</div>`;
 }
 
 function renderCardTags(w: Wine): string {
-  return w.tags.length ? `<div><p class="v-cap">Accords mets-vins</p><ul class="v-tags">${w.tags.map((t) => `<li data-tag="${esc(norm(t))}">${esc(t)}</li>`).join("")}</ul></div>` : "";
+  return w.tags.length > 0
+    ? `<div><p class="v-cap">Accords mets-vins</p><ul class="v-tags">${w.tags.map((t) => `<li data-tag="${esc(norm(t))}">${esc(t)}</li>`).join("")}</ul></div>`
+    : "";
 }
 
 function renderCardNotes(w: Wine): string {
   if (!w.notes) return "";
-  const notes = esc(w.notes).replace(NOTES_SEPARATOR, '<span class="v-sep" aria-hidden="true"> · </span>');
+  const notes = esc(w.notes).replace(
+    NOTES_SEPARATOR,
+    '<span class="v-sep" aria-hidden="true"> · </span>',
+  );
   return `<div class="v-notes-wrap"><p class="v-cap">Notes / Service</p><p class="v-notes">${notes}</p></div>`;
 }
 
@@ -88,17 +111,31 @@ interface Inventory {
   ready: number;
 }
 
+const hasTitle = (title: string | undefined): title is string =>
+  title !== undefined && title !== "";
+
+function deltaSign(yearsLeft: number): string {
+  if (yearsLeft > 0) return "+";
+  return yearsLeft < 0 ? "−" : "";
+}
+
 function summarize(wines: Wine[], year: number): Inventory {
-  const stock = wines.filter(isInStock);
-  const bottlesWith = (...statuses: Status[]) => totalBottles(stock.filter((w) => statuses.includes(w.status)));
-  const years = wines.flatMap((w) => [w.peakStart, w.peakEnd]).filter((y): y is number => y !== null);
+  const stock = wines.filter((w) => isInStock(w));
+  const bottlesWith = (...statuses: Status[]) =>
+    totalBottles(stock.filter((w) => statuses.includes(w.status)));
+  const years = wines
+    .flatMap((w) => [w.peakStart, w.peakEnd])
+    .filter((y): y is number => y !== null);
   return {
     stock,
     year,
     scale: { min: Math.min(year, ...years), max: Math.max(year, ...years) + 1 },
-    colors: [...new Map(stock.filter((w) => w.color).map((w) => [norm(w.color), w.color] as const))]
-      .sort(([a], [b]) => colorRank(a) - colorRank(b)),
-    extraTags: [...new Set(stock.flatMap((w) => w.tags))].filter((t) => !KNOWN_TAGS.some((k) => sameTag(k, t))),
+    colors: [
+      ...new Map(stock.filter((w) => w.color).map((w) => [norm(w.color), w.color] as const)),
+    ].toSorted(([a], [b]) => colorRank(a) - colorRank(b)),
+    extraTags: [...new Set(stock.flatMap((w) => w.tags))].filter(
+      (t) => !KNOWN_TAGS.some((k) => sameTag(k, t)),
+    ),
     urgent: bottlesWith(STATUS_KEY.URGENT, STATUS_KEY.THIS_YEAR),
     ready: bottlesWith(STATUS_KEY.READY),
   };
@@ -108,7 +145,7 @@ function renderHero({ stock, year, urgent, ready }: Inventory, title?: string): 
   const bottles = totalBottles;
   return `<header class="v-hero">
     <svg class="v-monogram" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="38.5" fill="none" stroke="currentColor"/><circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" opacity=".55"/><text x="40" y="49" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="29" fill="currentColor">CV</text></svg>
-    <h1 class="v-title">Cave <em>Vinum</em></h1><p class="v-tagline">${title ? esc(title) : "Chaque vin a son heure."}</p>
+    <h1 class="v-title">Cave <em>Vinum</em></h1><p class="v-tagline">${hasTitle(title) ? esc(title) : "Chaque vin a son heure."}</p>
     <div class="v-orn" aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 0 9 5l5 2-5 2-2 5-2-5-5-2 5-2z" fill="currentColor"/></svg></div>
     <div class="v-stats">
       <div class="v-stat"><b>${bottles(stock)}</b><span>bouteilles</span></div>
@@ -133,7 +170,12 @@ function renderControls({ stock, colors, extraTags }: Inventory): string {
     </section>`;
 }
 
-export function renderHtml(wines: Wine[], year: number, generatedAt: string, title?: string): string {
+export function renderHtml(
+  wines: Wine[],
+  year: number,
+  generatedAt: string,
+  title?: string,
+): string {
   const inventory = summarize(wines, year);
   const { scale } = inventory;
   return `<!doctype html>
@@ -143,7 +185,7 @@ export function renderHtml(wines: Wine[], year: number, generatedAt: string, tit
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#120809">
-<title>${title ? `${esc(title)} · Cave Vinum` : "Cave Vinum"}</title>
+<title>${hasTitle(title) ? `${esc(title)} · Cave Vinum` : "Cave Vinum"}</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23120809' stroke='%23c9a76b' stroke-width='2'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-size='24' fill='%23ead7a8'%3ECV%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -37,7 +37,8 @@ export const STATUS: Record<Status, { rank: number; label: string; css: string }
 };
 
 export const isInStock = (w: Wine): boolean => w.status !== STATUS_KEY.EMPTY;
-export const isDrinkSoon = (w: Wine): boolean => w.status === STATUS_KEY.URGENT || w.status === STATUS_KEY.THIS_YEAR;
+export const isDrinkSoon = (w: Wine): boolean =>
+  w.status === STATUS_KEY.URGENT || w.status === STATUS_KEY.THIS_YEAR;
 
 export const sameTag = (a: string, b: string): boolean => norm(a) === norm(b);
 export const hasTag = (w: Wine, tag: string): boolean => w.tags.some((t) => sameTag(t, tag));
@@ -47,13 +48,21 @@ export const UNKNOWN_YEARS_LEFT = 999;
 export const UNRANKED_COLOR = 99;
 /** A wine name is "House - Cuvée"; notes separate items with " · ". */
 export const NAME_SEPARATOR = " - ";
-export const NOTES_SEPARATOR = /\s+·\s+/g;
+export const NOTES_SEPARATOR = /\s+·\s+/gu;
 
 /** Tags offered by the filter, in order (unknown tags are appended). */
 export const KNOWN_TAGS = [
-  "Apéro", "Fruits de mer", "Poisson", "Volaille & viande blanche",
-  "Viande rouge & grillades", "Plat mijoté & gibier", "Charcuterie & cuisine italienne",
-  "Végétarien", "Épicé & cuisine du monde", "Fromage", "Dessert",
+  "Apéro",
+  "Fruits de mer",
+  "Poisson",
+  "Volaille & viande blanche",
+  "Viande rouge & grillades",
+  "Plat mijoté & gibier",
+  "Charcuterie & cuisine italienne",
+  "Végétarien",
+  "Épicé & cuisine du monde",
+  "Fromage",
+  "Dessert",
 ];
 
 /** CSV positions from the supplied workbook. Header text is intentionally ignored. */
@@ -71,21 +80,26 @@ export const COLUMN = {
 export const CSV_COLUMN_COUNT = 9;
 
 export const COLOR_ORDER = ["rouge", "blanc", "rose", "bulles"];
-export const colorRank = (key: string): number => (COLOR_ORDER.indexOf(key) + 1) || UNRANKED_COLOR;
+export const colorRank = (key: string): number => COLOR_ORDER.indexOf(key) + 1 || UNRANKED_COLOR;
 /** Colours with their own dot; any other colour uses the fallback dot. */
-const DOT_COLORS = ["rouge", "blanc", "rose"];
+const DOT_COLORS = new Set(["rouge", "blanc", "rose"]);
 const FALLBACK_DOT_COLOR = "other";
-export const dotColor = (color: string): string => (DOT_COLORS.includes(norm(color)) ? norm(color) : FALLBACK_DOT_COLOR);
+export const dotColor = (color: string): string =>
+  DOT_COLORS.has(norm(color)) ? norm(color) : FALLBACK_DOT_COLOR;
 
 export function splitName(name: string): { house: string; cuvee: string } {
   const [house = "", ...cuvee] = name.split(NAME_SEPARATOR);
   return { house, cuvee: cuvee.join(NAME_SEPARATOR) };
 }
 
-export function computeStatus({ qty, peakStart: start, peakEnd: end }: Pick<Wine, "qty" | "peakStart" | "peakEnd">, year: number): Pick<Wine, "status" | "yearsLeft"> {
+export function computeStatus(
+  { qty, peakStart: start, peakEnd: end }: Pick<Wine, "qty" | "peakStart" | "peakEnd">,
+  year: number,
+): Pick<Wine, "status" | "yearsLeft"> {
   if (qty !== null && qty <= 0) return { status: STATUS_KEY.EMPTY, yearsLeft: null };
   const yearsLeft = end === null ? null : end - year;
-  if (qty === null || end === null || (start !== null && start > end)) return { status: STATUS_KEY.INCOMPLETE, yearsLeft };
+  if (qty === null || end === null || (start !== null && start > end))
+    return { status: STATUS_KEY.INCOMPLETE, yearsLeft };
   if (end < year) return { status: STATUS_KEY.URGENT, yearsLeft };
   if (end === year) return { status: STATUS_KEY.THIS_YEAR, yearsLeft };
   if (start === null || year >= start) return { status: STATUS_KEY.READY, yearsLeft };
@@ -94,9 +108,11 @@ export function computeStatus({ qty, peakStart: start, peakEnd: end }: Pick<Wine
 
 export function toWines(rows: string[][], year: number): { wines: Wine[]; warnings: string[] } {
   const [header, ...data] = rows;
-  if (!header) throw new Error("CSV vide.");
+  if (rows.length === 0 || header === undefined) throw new Error("CSV vide.");
   if (header.length < CSV_COLUMN_COUNT) {
-    throw new Error(`Incomplete CSV: expected at least ${CSV_COLUMN_COUNT} columns in the template's order.`);
+    throw new Error(
+      `Incomplete CSV: expected at least ${CSV_COLUMN_COUNT} columns in the template's order.`,
+    );
   }
   const warnings: string[] = [];
   const wines: Wine[] = [];
@@ -111,7 +127,7 @@ export function toWines(rows: string[][], year: number): { wines: Wine[]; warnin
 
 /** Spreadsheet line of the first data row (the header is line 1). */
 const FIRST_DATA_LINE = 2;
-const TAG_SEPARATOR = /[,;]/;
+const TAG_SEPARATOR = /[,;]/u;
 
 const cell = (row: string[], key: keyof typeof COLUMN): string => (row[COLUMN[key]] ?? "").trim();
 
@@ -128,7 +144,14 @@ function parseWineRow(row: string[], year: number): Wine | null {
     qty,
     peakStart,
     peakEnd,
-    tags: [...new Set(cell(row, "tags").split(TAG_SEPARATOR).map((t) => t.trim()).filter(Boolean))],
+    tags: [
+      ...new Set(
+        cell(row, "tags")
+          .split(TAG_SEPARATOR)
+          .map((t) => t.trim())
+          .filter(Boolean),
+      ),
+    ],
     color: cell(row, "color"),
     region: cell(row, "region"),
     notes: cell(row, "notes"),
@@ -141,17 +164,20 @@ function rowWarnings(wine: Wine, line: number): string[] {
   const warnings: string[] = [];
   if (wine.qty === null) warnings.push(`${where} : quantité vide ou invalide`);
   if (wine.peakEnd === null) warnings.push(`${where} : apogée fin vide ou invalide`);
-  if (wine.peakStart !== null && wine.peakEnd !== null && wine.peakStart > wine.peakEnd) warnings.push(`${where} : apogée début > apogée fin`);
+  if (wine.peakStart !== null && wine.peakEnd !== null && wine.peakStart > wine.peakEnd)
+    warnings.push(`${where} : apogée début > apogée fin`);
   return warnings;
 }
 
 /** Sort by status, years remaining, oldest vintage (non-vintage first), then name. */
 function sortForDrinking(wines: Wine[]): Wine[] {
-  return wines.sort((a, b) =>
-    STATUS[a.status].rank - STATUS[b.status].rank
-    || (a.yearsLeft ?? UNKNOWN_YEARS_LEFT) - (b.yearsLeft ?? UNKNOWN_YEARS_LEFT)
-    || (a.vintage ?? 0) - (b.vintage ?? 0)
-    || a.name.localeCompare(b.name, LOCALE));
+  return wines.toSorted(
+    (a, b) =>
+      STATUS[a.status].rank - STATUS[b.status].rank ||
+      (a.yearsLeft ?? UNKNOWN_YEARS_LEFT) - (b.yearsLeft ?? UNKNOWN_YEARS_LEFT) ||
+      (a.vintage ?? 0) - (b.vintage ?? 0) ||
+      a.name.localeCompare(b.name, LOCALE),
+  );
 }
 
 export function totalBottles(list: Wine[]): number {

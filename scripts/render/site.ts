@@ -60,11 +60,14 @@ ${body}
 const buttonLink = (href: string, label: string, modifier: string): string =>
   href ? `<a class="h-btn${modifier}" href="${esc(href)}">${esc(label)}</a>` : "";
 const link = (href: string, label: string): string => buttonLink(href, label, "");
-const primaryLink = (href: string, label: string): string => buttonLink(href, label, " h-btn--main");
+const primaryLink = (href: string, label: string): string =>
+  buttonLink(href, label, " h-btn--main");
 
 /** Generic home page. It never lists or links to the configured caves. */
 export function renderHome(site: SiteConfig, generatedAt: string): string {
-  return pageShell("Cave Vinum", `<header class="h-hero">
+  return pageShell(
+    "Cave Vinum",
+    `<header class="h-hero">
   ${MONOGRAM}
   <h1 class="h-title">Cave <em>Vinum</em></h1>
   <p class="h-tag">Chaque vin a son heure.</p>
@@ -109,14 +112,18 @@ export function renderHome(site: SiteConfig, generatedAt: string): string {
   <details><summary>Combien d'accords mets-vins par vin ?</summary><p>La colonne Accords accepte plusieurs choix, mais 2 ou 3 suffisent : au-delà, le filtre « Quel plat ? » ne trie plus grand-chose.</p></details>
 </section>
 
-<footer class="h-foot">Cave Vinum · Mis à jour le ${esc(generatedAt)}</footer>`);
+<footer class="h-foot">Cave Vinum · Mis à jour le ${esc(generatedAt)}</footer>`,
+  );
 }
 
 export function render404(): string {
-  return pageShell("Cave introuvable · Cave Vinum", `<header class="h-hero">
+  return pageShell(
+    "Cave introuvable · Cave Vinum",
+    `<header class="h-hero">
   ${MONOGRAM}
   <h1 class="h-title">Cave <em>introuvable</em></h1>
   <p class="h-lead">Cette adresse ne correspond à aucune cave. Vérifie le lien qu'on t'a envoyé, en gardant la barre oblique finale (par exemple …/ton-prenom/).</p>
   <div class="h-cta">${primaryLink("/", "Accueil")}${link(`/${DEMO_SLUG}/`, "Voir la démo")}</div>
-</header>`);
+</header>`,
+  );
 }
