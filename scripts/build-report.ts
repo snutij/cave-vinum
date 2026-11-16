@@ -17,9 +17,9 @@ import { DEMO_SLUG, readSiteConfig, resolveCaves } from "./lib/config.ts";
 import type { Cave, SiteConfig } from "./lib/config.ts";
 import { isInStock, toWines, totalBottles } from "./lib/wines.ts";
 import type { Wine } from "./lib/wines.ts";
-import { renderHtml } from "./templates/cave-page.ts";
-import { HEADERS, ROOT_SERVICE_WORKER, serviceWorker } from "./templates/service-worker.ts";
-import { render404, renderHome } from "./templates/site.ts";
+import { renderHtml } from "./render/cave-page.ts";
+import { HEADERS, ROOT_SERVICE_WORKER, serviceWorker } from "./render/service-worker.ts";
+import { render404, renderHome } from "./render/site.ts";
 
 const LOCALE = "fr-FR";
 const TIMEZONE = "Europe/Paris";
