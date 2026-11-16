@@ -1,14 +1,15 @@
 /**
- * Cave Vinum: generate the static wine-cellar site from a local CSV or INVENTORY_URL.
+ * Cave Vinum: generate the static wine-cellar site, one page per cave listed in INVENTORIES.
  *
  *   npm run build
- *   INVENTORY_URL="https://example.com/inventory.csv" npm run build
+ *   INVENTORIES='[{"slug": "papa", "url": "https://…/papa.csv", "title": "La cave de Papa"}]' npm run build
  *
  * Node >= 22.18 (runs TypeScript natively). No runtime dependencies.
- * Without INVENTORY_URL, reads data/inventory.csv. Writes the report to dist/.
+ * INVENTORIES is a JSON array of { slug, url, title? }. url is an HTTPS CSV URL or a relative local path.
+ * Always writes a generic home page, a 404 page and a demo cave; each cave goes to dist/<slug>/.
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { parseArgs } from "node:util";
 
 // ─── Data model ────────────────────────────────────────────────────────────
@@ -58,6 +59,23 @@ const COLUMN = {
 } as const;
 const CSV_COLUMN_COUNT = 9;
 
+/** One cave page, published at /<slug>/. url is an HTTPS CSV URL or a relative local path. */
+interface Cave {
+  slug: string;
+  url: string;
+  title: string;
+}
+const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+const DEMO_SLUG = "demo";
+const RESERVED_SLUGS = new Set([DEMO_SLUG]);
+
+/** Public, non-secret links shown on the home page (site.config.json). Empty = hidden. */
+interface SiteConfig {
+  templateUrl: string;
+  repoUrl: string;
+}
+const SITE_CONFIG_FILE = "site.config.json";
+
 // ─── Utilities ─────────────────────────────────────────────────────────────
 const norm = (s: string): string =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
@@ -104,10 +122,10 @@ export function parseCsv(text: string): string[][] {
 // ─── Fetch CSV ─────────────────────────────────────────────────────────────
 async function fetchCsv(rawUrl: string): Promise<string> {
   let url: URL;
-  try { url = new URL(rawUrl.trim()); } catch { throw new Error("INVENTORY_URL must be a valid URL."); }
+  try { url = new URL(rawUrl.trim()); } catch { throw new Error("The CSV URL must be a valid URL."); }
   const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
   if (url.protocol !== "https:" && !(isLocal && url.protocol === "http:")) {
-    throw new Error("INVENTORY_URL must use HTTPS.");
+    throw new Error("The CSV URL must use HTTPS.");
   }
   let reason = "";
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -118,7 +136,7 @@ async function fetchCsv(rawUrl: string): Promise<string> {
     } else if (res.ok) {
       // A CSV URL may return an HTML error page instead of the export.
       if ((res.headers.get("content-type") ?? "").includes("html")) {
-        throw new Error("INVENTORY_URL returned HTML instead of CSV.");
+        throw new Error("The CSV URL returned HTML instead of CSV (is the sheet published as CSV?).");
       }
       return await res.text();
     } else {
@@ -219,7 +237,7 @@ function renderCard(w: Wine, scale: { min: number; max: number }, year: number, 
 </article>`;
 }
 
-function renderHtml(wines: Wine[], year: number, generatedAt: string): string {
+function renderHtml(wines: Wine[], year: number, generatedAt: string, title?: string): string {
   const stock = wines.filter((w) => w.status !== "empty");
   const bottles = (list: Wine[]) => list.reduce((sum, w) => sum + (w.qty ?? 0), 0);
   const by = (...st: Status[]) => bottles(stock.filter((w) => st.includes(w.status)));
@@ -249,7 +267,7 @@ function renderHtml(wines: Wine[], year: number, generatedAt: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#120809">
-<title>Cave Vinum</title>
+<title>${title ? `${esc(title)} · Cave Vinum` : "Cave Vinum"}</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23120809' stroke='%23c9a76b' stroke-width='2'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-size='24' fill='%23ead7a8'%3ECV%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -293,7 +311,7 @@ body{font:15px/1.5 "Jost","Avenir Next","Helvetica Neue",system-ui,-apple-system
 .v-time{display:grid;gap:12px}.v-time-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 14px}.v-cap{margin:0;font-size:10.5px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-mute)}.v-years{display:inline-flex;align-items:baseline;gap:12px}.v-years strong{font-family:var(--serif);font-size:23px;font-weight:600;color:var(--ink)}.v-delta{padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--gold-ink);background:rgba(201,167,107,.22)}.is-urgent .v-delta{color:#fff;background:var(--garnet)}.v-track-wrap{padding-top:20px}.v-bar{position:relative;height:8px;border-radius:4px;background-color:rgba(36,22,26,.07);background-image:linear-gradient(90deg,rgba(36,22,26,.14) 1px,transparent 1px);background-size:calc(100% / var(--n,15)) 100%}.v-window{position:absolute;top:0;bottom:0;border-radius:4px;background:linear-gradient(90deg,#e2c891,#b08a48);box-shadow:0 0 14px rgba(201,167,107,.55)}.is-urgent .v-window{background:repeating-linear-gradient(135deg,rgba(158,43,53,.6) 0 5px,rgba(158,43,53,.28) 5px 10px);box-shadow:none}.v-now{position:absolute;top:-6px;bottom:-6px;width:2px;margin-left:-1px;border-radius:1px;background:var(--ink)}.v-now span{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);padding:0 5px;border-radius:4px;background:var(--ink);color:var(--paper);font-size:10.5px;line-height:17px}.v-scale{display:flex;justify-content:space-between;margin-top:8px;font-size:11px;letter-spacing:.08em;color:var(--ink-mute)}
 .v-tags{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 0;padding:0;list-style:none}.v-tags li{padding:6px 12px;border:1px solid rgba(155,123,69,.36);border-radius:999px;background:rgba(255,255,255,.55);color:var(--ink-soft);font-size:12.5px}.v-tags li.is-match{border-color:var(--bordeaux);background:var(--bordeaux);color:var(--gold-hi)}
 .v-notes-wrap{padding-top:18px;border-top:1px dashed rgba(155,123,69,.4)}.v-notes{margin:10px 0 0;padding-left:18px;border-left:2px solid var(--gold);font-family:var(--serif);font-style:italic;font-size:20.5px;line-height:1.42;color:var(--ink);white-space:pre-line}.v-sep{color:var(--gold);font-style:normal;font-weight:600;padding:0 .12em}.v-place{margin:10px 0 0;font-size:14px;color:var(--ink-soft)}
-.v-empty{display:grid;justify-items:center;gap:14px;padding:70px 24px;border:1px dashed var(--line);border-radius:24px;text-align:center;font-family:var(--serif);font-style:italic;font-size:23px;color:rgba(247,241,230,.78)}.v-empty svg{width:34px;height:34px;color:var(--gold)}.v-foot{position:relative;z-index:1;display:grid;justify-items:center;gap:12px;padding:30px 20px 60px;color:rgba(247,241,230,.5);font-size:12px;letter-spacing:.14em;text-align:center}.v-foot svg{width:34px;height:34px;color:var(--gold);opacity:.7}
+.v-empty{display:grid;justify-items:center;gap:14px;padding:70px 24px;border:1px dashed var(--line);border-radius:24px;text-align:center;font-family:var(--serif);font-style:italic;font-size:23px;color:rgba(247,241,230,.78)}.v-empty svg{width:34px;height:34px;color:var(--gold)}.v-foot{position:relative;z-index:1;display:grid;justify-items:center;gap:12px;padding:30px 20px 60px;color:rgba(247,241,230,.5);font-size:12px;letter-spacing:.14em;text-align:center}.v-foot svg{width:34px;height:34px;color:var(--gold);opacity:.7}.v-foot a{color:var(--gold);text-decoration:none}.v-foot a:hover{text-decoration:underline}
 @media(max-width:560px){.v-main{padding:0 12px 32px}.v-controls{padding:14px;border-radius:20px;gap:16px}.v-row{gap:12px}.v-seg{display:flex;width:100%}.v-seg button{flex:1;justify-content:center;padding:10px 8px;letter-spacing:.1em}.v-meta{width:100%;justify-content:space-between}.v-stat{padding:2px 8px}.v-stat span{letter-spacing:.14em;font-size:9px}.v-label{padding:36px 24px 30px}.v-vintage{font-size:50px}.v-details{padding:22px 20px 24px;gap:20px}}
 @media(prefers-reduced-motion:reduce){.vinum *{animation:none!important;transition:none!important}}
 </style>
@@ -302,7 +320,7 @@ body{font:15px/1.5 "Jost","Avenir Next","Helvetica Neue",system-ui,-apple-system
 <div class="vinum">
   <header class="v-hero">
     <svg class="v-monogram" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="38.5" fill="none" stroke="currentColor"/><circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" opacity=".55"/><text x="40" y="49" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="29" fill="currentColor">CV</text></svg>
-    <h1 class="v-title">Cave <em>Vinum</em></h1><p class="v-tagline">Chaque vin a son heure.</p>
+    <h1 class="v-title">Cave <em>Vinum</em></h1><p class="v-tagline">${title ? esc(title) : "Chaque vin a son heure."}</p>
     <div class="v-orn" aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 0 9 5l5 2-5 2-2 5-2-5-5-2 5-2z" fill="currentColor"/></svg></div>
     <div class="v-stats">
       <div class="v-stat"><b>${bottles(stock)}</b><span>bouteilles</span></div>
@@ -327,7 +345,7 @@ ${wines.map((w, i) => renderCard(w, scale, year, i)).join("\n")}
       <div class="v-empty" id="v-empty" hidden><span>Aucun vin adapté dans ta cave pour ce choix.</span></div>
     </section>
   </main>
-  <footer class="v-foot"><svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="38.5" fill="none" stroke="currentColor" stroke-width="1.4"/><text x="40" y="49" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="29" fill="currentColor">CV</text></svg><span>Mis à jour le ${esc(generatedAt)}</span></footer>
+  <footer class="v-foot"><svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="38.5" fill="none" stroke="currentColor" stroke-width="1.4"/><text x="40" y="49" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="29" fill="currentColor">CV</text></svg><span>Mis à jour le ${esc(generatedAt)} · <a href="../">Cave Vinum</a></span></footer>
 </div>
 <script>
 (function () {
@@ -384,15 +402,24 @@ ${wines.map((w, i) => renderCard(w, scale, year, i)).join("\n")}
 }
 
 // Offline support: try the network first, then fall back to the cache.
-const SERVICE_WORKER = `const CACHE = "cave-vinum";
+// Each cave has its own cache and only handles files in its own folder, so one
+// cave's worker never serves another cave's page.
+const serviceWorker = (slug: string): string => `const CACHE = ${JSON.stringify(`cave-vinum-${slug}`)};
+const BASE = new URL("./", self.location).pathname;
+// Own files only: the folder itself or a file directly in it (never a sub-folder such as another cave).
+const own = (u) => {
+  if (u.origin !== location.origin || !u.pathname.startsWith(BASE)) return false;
+  const rest = u.pathname.slice(BASE.length);
+  return rest === "" || (!rest.includes("/") && rest.includes("."));
+};
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET" || new URL(e.request.url).origin !== location.origin) return;
+  if (e.request.method !== "GET" || !own(new URL(e.request.url))) return;
   e.respondWith(fetch(e.request).then((res) => {
     if (res.ok && res.type === "basic") { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
     return res;
-  }).catch(() => caches.match(e.request).then((r) => r || caches.match("./"))));
+  }).catch(() => caches.open(CACHE).then((c) => c.match(e.request).then((r) => r || c.match("./")))));
 });
 `;
 
@@ -404,6 +431,208 @@ const HEADERS = `/*
   X-Frame-Options: DENY
 `;
 
+// ─── Home, 404 and demo ────────────────────────────────────────────────────
+const SHELL_CSS = `:root{color-scheme:dark}*{box-sizing:border-box}
+html,body{margin:0;background:#120809}
+body{font:16px/1.6 "Jost","Avenir Next","Helvetica Neue",system-ui,-apple-system,"Segoe UI",sans-serif;color:#f7f1e6}
+a{color:#ead7a8}
+.h-wrap{max-width:880px;margin:0 auto;padding:clamp(32px,6vw,72px) 20px 48px}
+.h-hero{text-align:center}
+.h-mono{display:block;width:56px;height:56px;margin:0 auto 12px;color:#c9a76b}
+.h-title{margin:0;font-family:"Cormorant Garamond",Georgia,serif;font-weight:500;font-size:clamp(46px,8vw,80px);line-height:.95}
+.h-title em{font-style:italic;font-weight:400;color:#e2c891}
+.h-tag{margin:8px 0 0;font-family:"Cormorant Garamond",Georgia,serif;font-style:italic;font-size:clamp(18px,2.4vw,22px);color:rgba(247,241,230,.72)}
+.h-lead{max-width:620px;margin:22px auto 0;color:rgba(247,241,230,.85)}
+.h-cta{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:26px}
+.h-btn{display:inline-block;padding:11px 20px;border-radius:999px;border:1px solid #c9a76b;color:#ead7a8;text-decoration:none;font-size:14px;letter-spacing:.04em}
+.h-btn--main{background:#c9a76b;color:#120809;font-weight:500}
+.h-btn:hover{filter:brightness(1.1)}
+.h-sec{margin-top:clamp(40px,7vw,64px)}
+.h-sec h2{margin:0 0 16px;font-family:"Cormorant Garamond",Georgia,serif;font-weight:500;font-size:clamp(28px,4vw,36px);color:#ead7a8;text-align:center}
+.h-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.h-card{padding:20px;border:1px solid rgba(201,167,107,.32);border-radius:14px;background:rgba(31,12,17,.7)}
+.h-card h3{margin:0 0 6px;font-size:16px;font-weight:600;color:#f7f1e6}
+.h-card p{margin:0;color:rgba(247,241,230,.78);font-size:15px}
+.h-card .h-btn{margin-top:14px}
+.h-num{display:inline-grid;place-items:center;width:28px;height:28px;margin-bottom:10px;border-radius:50%;border:1px solid #c9a76b;color:#c9a76b;font-size:13px}
+details{border-bottom:1px solid rgba(201,167,107,.25);padding:14px 2px}
+summary{cursor:pointer;font-weight:500}
+details p{margin:10px 0 0;color:rgba(247,241,230,.8)}
+table{border-collapse:collapse;margin-top:10px;font-size:14px}
+td{padding:4px 14px 4px 0;border-bottom:1px solid rgba(201,167,107,.15)}
+.h-foot{margin-top:56px;text-align:center;font-size:12px;letter-spacing:.12em;color:rgba(247,241,230,.5)}`;
+
+const MONOGRAM = `<svg class="h-mono" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="38.5" fill="none" stroke="currentColor"/><circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" opacity=".55"/><text x="40" y="49" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="29" fill="currentColor">CV</text></svg>`;
+
+function pageShell(title: string, body: string): string {
+  return `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#120809">
+<title>${esc(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+<style>${SHELL_CSS}</style>
+</head>
+<body>
+<div class="h-wrap">
+${body}
+</div>
+</body>
+</html>
+`;
+}
+
+const link = (href: string, label: string, main = false): string =>
+  href ? `<a class="h-btn${main ? " h-btn--main" : ""}" href="${esc(href)}">${esc(label)}</a>` : "";
+
+/** Generic home page. It never lists or links to the configured caves. */
+function renderHome(site: SiteConfig, generatedAt: string): string {
+  return pageShell("Cave Vinum", `<header class="h-hero">
+  ${MONOGRAM}
+  <h1 class="h-title">Cave <em>Vinum</em></h1>
+  <p class="h-tag">Chaque vin a son heure.</p>
+  <p class="h-lead">Un site tout simple pour savoir quelle bouteille ouvrir en premier. Tu remplis un Google Sheet, Cave Vinum trie ta cave chaque jour : à boire en priorité, prêt à boire, à garder, avec des idées d'accords mets-vins.</p>
+  <div class="h-cta">${link(`./${DEMO_SLUG}/`, "Voir la démo", true)}${link(site.templateUrl, "Créer mon tableur")}${link(site.repoUrl, "Code source")}</div>
+</header>
+
+<section class="h-sec">
+  <h2>Comment ça marche</h2>
+  <div class="h-grid">
+    <div class="h-card"><span class="h-num">1</span><h3>Remplis ton tableur</h3><p>Une ligne par vin et 4 informations obligatoires : le nom, la quantité, la couleur et l'année limite pour le boire. Des menus déroulants pour le reste.</p></div>
+    <div class="h-card"><span class="h-num">2</span><h3>Publie-le</h3><p>Dans Google Sheets : Fichier › Partager › Publier sur le Web, onglet « Inventaire », format CSV.</p></div>
+    <div class="h-card"><span class="h-num">3</span><h3>Consulte ta cave</h3><p>Ta page se met à jour toute seule : urgences, vins prêts, filtre par plat, recherche. Pensée pour le téléphone, même hors connexion.</p></div>
+  </div>
+</section>
+
+<section class="h-sec">
+  <h2>Avoir ma cave</h2>
+  <div class="h-grid">
+    <div class="h-card"><h3>Le plus simple</h3><p>Crée ta copie du tableur, remplis-la et publie-la. Envoie ensuite le lien CSV à la personne qui héberge ce site : ta cave sera en ligne à son adresse, par exemple <b>…/ton-prenom/</b>.</p>${link(site.templateUrl, "Créer mon tableur")}</div>
+    <div class="h-card"><h3>En autonomie</h3><p>Le projet est open source et gratuit. Copie le dépôt (fork), connecte-le à un hébergeur statique comme Cloudflare Pages et suis le README.</p>${link(site.repoUrl, "Voir le dépôt")}</div>
+  </div>
+</section>
+
+<section class="h-sec">
+  <h2>Questions fréquentes</h2>
+  <details><summary>Comment remplir « Boire avant » ?</summary>
+    <p>C'est la dernière année où le vin sera à son meilleur. Sans indication du domaine ou du caviste, ajoute au millésime une durée de garde indicative :</p>
+    <table>
+      <tr><td>Bulles (brut sans année)</td><td>1 à 3 ans</td></tr>
+      <tr><td>Rosé</td><td>1 à 2 ans</td></tr>
+      <tr><td>Blanc sec léger</td><td>2 à 4 ans</td></tr>
+      <tr><td>Blanc de garde (Bourgogne, Loire)</td><td>5 à 10 ans</td></tr>
+      <tr><td>Rouge léger (Beaujolais, Loire)</td><td>3 à 6 ans</td></tr>
+      <tr><td>Rouge de garde (Bordeaux, Rhône)</td><td>8 à 15 ans</td></tr>
+      <tr><td>Liquoreux</td><td>10 ans et plus</td></tr>
+    </table>
+  </details>
+  <details><summary>J'ai ouvert une bouteille, je fais quoi ?</summary><p>Baisse la quantité dans ton tableur. À 0, le vin passe en « Épuisé » et disparaît de la liste.</p></details>
+  <details><summary>Quand ma page se met-elle à jour ?</summary><p>À chaque reconstruction du site, en général une fois par jour. Tes modifications apparaissent au plus tard le lendemain.</p></details>
+  <details><summary>Qui peut voir ma cave ?</summary><p>Toute personne qui connaît son adresse. Les caves ne sont listées nulle part et ne sont pas indexées par les moteurs de recherche.</p></details>
+  <details><summary>Combien d'accords mets-vins par vin ?</summary><p>La colonne Accords accepte plusieurs choix, mais 2 ou 3 suffisent : au-delà, le filtre « Quel plat ? » ne trie plus grand-chose.</p></details>
+</section>
+
+<footer class="h-foot">Cave Vinum · Mis à jour le ${esc(generatedAt)}</footer>`);
+}
+
+function render404(): string {
+  return pageShell("Cave introuvable · Cave Vinum", `<header class="h-hero">
+  ${MONOGRAM}
+  <h1 class="h-title">Cave <em>introuvable</em></h1>
+  <p class="h-lead">Cette adresse ne correspond à aucune cave. Vérifie le lien qu'on t'a envoyé, en gardant la barre oblique finale (par exemple …/ton-prenom/).</p>
+  <div class="h-cta">${link("/", "Accueil", true)}${link(`/${DEMO_SLUG}/`, "Voir la démo")}</div>
+</header>`);
+}
+
+/** Fictional cellar for /demo/. Years are relative to the build year, so every status always shows. */
+function demoCsv(y: number): string {
+  const rows: (string | number)[][] = [
+    ["Vin", "Millésime", "Quantité", "Couleur", "Région", "Boire dès", "Boire avant", "Accords", "Notes"],
+    ["Domaine de la Démo - Cuvée Prestige", y - 8, 3, "Rouge", "Bordeaux", y - 4, y - 1, "Viande rouge & grillades, Plat mijoté & gibier, Fromage", "Exemple fictif · Carafer 1 h · Servir à 17 °C"],
+    ["Champagne Exemple - Brut Réserve", "", 2, "Bulles", "Champagne", "", y, "Apéro, Fruits de mer", "Exemple fictif · Servir à 8 °C"],
+    ["Clos Fictif - Chablis 1er Cru", y - 3, 6, "Blanc", "Bourgogne", y - 1, y + 3, "Fruits de mer, Poisson, Fromage", "Exemple fictif · Servir à 11 °C"],
+    ["Domaine Témoin - Morgon", y - 2, 5, "Rouge", "Beaujolais", y - 1, y + 4, "Volaille & viande blanche, Charcuterie & cuisine italienne, Végétarien", "Exemple fictif"],
+    ["Mas Imaginaire - Rosé", y - 1, 4, "Rosé", "Provence", "", y + 1, "Apéro, Épicé & cuisine du monde", "Exemple fictif · Bien frais"],
+    ["Vignoble Exemple - Vouvray moelleux", y - 5, 2, "Blanc", "Loire", y - 2, y + 15, "Épicé & cuisine du monde, Fromage, Dessert", "Exemple fictif"],
+    ["Château Modèle - Grand Vin", y - 2, 6, "Rouge", "Rhône", y + 3, y + 12, "Viande rouge & grillades, Plat mijoté & gibier", "Exemple fictif · À oublier en cave"],
+    ["Cave Inconnue - Riesling", "", 1, "Blanc", "Alsace", "", "", "Poisson, Épicé & cuisine du monde", "Exemple fictif · Millésime à compléter"],
+    ["Domaine Passé - Côtes du Rhône", y - 5, 0, "Rouge", "Rhône", y - 3, y + 1, "Viande rouge & grillades", "Exemple fictif"],
+  ];
+  const cell = (v: string | number): string => {
+    const t = String(v);
+    return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  return rows.map((r) => r.map(cell).join(",")).join("\n");
+}
+
+/** Replaces the worker that older versions registered at the site root, then removes itself. */
+const ROOT_SERVICE_WORKER = `self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (e) => e.waitUntil(caches.delete("cave-vinum").then(() => self.registration.unregister())));
+`;
+
+// ─── Configuration ─────────────────────────────────────────────────────────
+/** "papa" → "Cave de Papa", "axel" → "Cave d'Axel", "jean-marc" → "Cave de Jean-Marc". */
+function defaultTitle(slug: string): string {
+  const name = slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join("-");
+  return /^[aeiouy]/i.test(slug) ? `Cave d'${name}` : `Cave de ${name}`;
+}
+
+/** INVENTORIES: JSON array of { slug, url, title? }. Error messages never include the URLs. */
+function resolveCaves(): Cave[] {
+  const raw = process.env.INVENTORIES?.trim();
+  if (!raw) return [];
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw new Error("INVENTORIES must be valid JSON."); }
+  if (!Array.isArray(parsed)) {
+    throw new Error('INVENTORIES must be a JSON array, for example [{"slug": "papa", "url": "https://…", "title": "La cave de Papa"}].');
+  }
+  const seen = new Set<string>();
+  return parsed.map((item: unknown, i): Cave => {
+    const where = `INVENTORIES[${i}]`;
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${where} must be an object with "slug" and "url".`);
+    const { slug, url, title } = item as Record<string, unknown>;
+    if (typeof slug !== "string" || !SLUG.test(slug)) {
+      throw new Error(`${where}: "slug" is required and uses lowercase letters, digits and dashes (for example "papa").`);
+    }
+    if (RESERVED_SLUGS.has(slug)) throw new Error(`${where}: "${slug}" is reserved, choose another slug.`);
+    if (seen.has(slug)) throw new Error(`${where}: duplicate slug "${slug}".`);
+    seen.add(slug);
+    if (typeof url !== "string" || !url.trim()) throw new Error(`${where} ("${slug}"): "url" is required.`);
+    if (title !== undefined && typeof title !== "string") throw new Error(`${where} ("${slug}"): "title" must be text.`);
+    return { slug, url: url.trim(), title: title?.trim() || defaultTitle(slug) };
+  });
+}
+
+async function readSiteConfig(): Promise<SiteConfig> {
+  const raw = await readFile(SITE_CONFIG_FILE, "utf8").catch(() => "{}");
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw new Error(`${SITE_CONFIG_FILE} must be valid JSON.`); }
+  const obj = (parsed && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+  const pick = (key: keyof SiteConfig): string => {
+    const v = typeof obj[key] === "string" ? (obj[key] as string).trim() : "";
+    if (v && !v.startsWith("https://")) throw new Error(`${SITE_CONFIG_FILE}: "${key}" must be an HTTPS URL or empty.`);
+    return v;
+  };
+  return { templateUrl: pick("templateUrl"), repoUrl: pick("repoUrl") };
+}
+
+/** HTTPS URL, or a relative path inside the project (handy for local tests). */
+async function loadCsv(url: string): Promise<string> {
+  if (/^https?:\/\//i.test(url)) return fetchCsv(url);
+  if (isAbsolute(url) || url.split(/[\\/]/).includes("..")) {
+    throw new Error('A local "url" must be a relative path inside the project (for example "data/inventory.csv").');
+  }
+  return readFile(url, "utf8").catch((err: unknown) => {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") throw new Error("Local CSV file not found.");
+    throw err;
+  });
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
   const { values } = parseArgs({
@@ -414,34 +643,50 @@ async function main(): Promise<void> {
   const year = values.year ? Number(values.year) : parisYear;
   if (!Number.isInteger(year)) throw new Error("--year must be a year (for example, 2027).");
 
-  const inventoryUrl = process.env.INVENTORY_URL?.trim();
-  const csv = inventoryUrl
-    ? await fetchCsv(inventoryUrl)
-    : await readFile("data/inventory.csv", "utf8").catch((err: unknown) => {
-      if (err instanceof Error && "code" in err && err.code === "ENOENT") {
-        throw new Error("No inventory source: set INVENTORY_URL or add data/inventory.csv.");
-      }
-      throw err;
-    });
+  const site = await readSiteConfig();
+  const caves = resolveCaves();
+  if (caves.length === 0) console.warn("⚠ INVENTORIES is not set: only the home page, the 404 page and the demo are generated.");
 
-  const warnings: string[] = [];
-  const wines = toWines(parseCsv(csv), year, warnings);
-  if (wines.length === 0) throw new Error("No wines found in the CSV; refusing to generate an empty report.");
+  // Load and validate every cave before writing anything: if one source fails,
+  // the build fails and the host keeps serving the previous deployment for everyone.
+  const loaded: { slug: string; title: string; wines: Wine[]; warnings: string[] }[] = [];
+  const demoWarnings: string[] = [];
+  loaded.push({ slug: DEMO_SLUG, title: "Cave de démonstration", wines: toWines(parseCsv(demoCsv(year)), year, demoWarnings), warnings: [] });
+  for (const cave of caves) {
+    try {
+      const warnings: string[] = [];
+      const wines = toWines(parseCsv(await loadCsv(cave.url)), year, warnings);
+      if (wines.length === 0) throw new Error("No wines found in the CSV; refusing to generate an empty report.");
+      loaded.push({ slug: cave.slug, title: cave.title, wines, warnings: warnings.map((w) => `/${cave.slug}/ ${w}`) });
+    } catch (err: unknown) {
+      throw new Error(`/${cave.slug}/: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  }
 
   const generatedAt = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", dateStyle: "long", timeStyle: "short" }).format(now);
   const out = values.out ?? "dist";
   await mkdir(out, { recursive: true });
   await Promise.all([
-    writeFile(join(out, "index.html"), renderHtml(wines, year, generatedAt)),
-    writeFile(join(out, "sw.js"), SERVICE_WORKER),
+    writeFile(join(out, "index.html"), renderHome(site, generatedAt)),
+    writeFile(join(out, "404.html"), render404()),
+    writeFile(join(out, "sw.js"), ROOT_SERVICE_WORKER),
     writeFile(join(out, "_headers"), HEADERS),
     writeFile(join(out, "robots.txt"), "User-agent: *\nDisallow: /\n"),
   ]);
+  console.log(`✓ home page → ${join(out, "index.html")}`);
 
-  for (const w of warnings) console.warn(`⚠ ${w}`);
-  const inStock = wines.filter((w) => w.status !== "empty");
-  const total = inStock.reduce((s, w) => s + (w.qty ?? 0), 0);
-  console.log(`✓ ${inStock.length} wine references in stock, ${total} bottles → ${join(out, "index.html")}`);
+  for (const { slug, title, wines, warnings } of loaded) {
+    const dir = join(out, slug);
+    await mkdir(dir, { recursive: true });
+    await Promise.all([
+      writeFile(join(dir, "index.html"), renderHtml(wines, year, generatedAt, title)),
+      writeFile(join(dir, "sw.js"), serviceWorker(slug)),
+    ]);
+    for (const w of warnings) console.warn(`⚠ ${w}`);
+    const inStock = wines.filter((w) => w.status !== "empty");
+    const total = inStock.reduce((s, w) => s + (w.qty ?? 0), 0);
+    console.log(`✓ ${inStock.length} wine references in stock, ${total} bottles → ${join(dir, "index.html")}`);
+  }
 }
 
 main().catch((err: unknown) => {
